@@ -15,6 +15,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@varias-ideias/plataforma": "file:../../OneDrive/Documentos/build/plataforma"
+    "@varias-ideias/plataforma": "github:Varias-Ideias/plataforma"
   }
 }

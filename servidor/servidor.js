@@ -19,8 +19,14 @@ const DADOS = path.resolve(process.env.DADOS || path.join(RAIZ, 'dados'));
 const WEB = path.join(RAIZ, 'web');
 const DOMINIO = path.join(RAIZ, 'src', 'dominio');
 
-export function criarServidor({ dados = DADOS, silencioso = false, ips = null } = {}) {
-  const banco = abrir(dados);
+/** Configuração desta máquina, em dados/config.json (fora do git). Tudo opcional. */
+function lerConfig(dados) {
+  try { return JSON.parse(fs.readFileSync(path.join(dados, 'config.json'), 'utf8')); } catch { return {}; }
+}
+
+export function criarServidor({ dados = DADOS, silencioso = false, ips = null, backupExtra } = {}) {
+  const config = lerConfig(dados);
+  const banco = abrir(dados, { backupExtra: backupExtra !== undefined ? backupExtra : config.backup_extra || null });
   const ouvintes = new Set();
   const limites = new Map(); // quem → [instantes] para o rate limit da captura
 

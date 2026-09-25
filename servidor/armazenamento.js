@@ -9,8 +9,14 @@ import { hojeNoFuso } from '../src/dominio/datas.js';
 export const hashToken = (t) => crypto.createHash('sha256').update(t).digest('hex');
 const novoToken = () => crypto.randomBytes(24).toString('base64url');
 
-export function abrir(dir) {
+/**
+ * @param {string} dir pasta de dados
+ * @param {{ backupExtra?: string|null }} [op] segunda pasta para o backup diário, fora deste disco
+ *   (ex.: uma pasta do OneDrive). Vem de dados/config.json → "backup_extra".
+ */
+export function abrir(dir, op = {}) {
   fs.mkdirSync(path.join(dir, 'backup'), { recursive: true });
+  const extra = op.backupExtra || null;
   const arquivo = path.join(dir, 'casa.json');
   let estado;
   /** tokens em texto puro só existem na primeira criação; vão para links.txt (fora do git) */
@@ -36,10 +42,31 @@ export function abrir(dir) {
     const tmp = arquivo + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(estado));
     fs.renameSync(tmp, arquivo);
-    const b = path.join(dir, 'backup', `casa-${hojeNoFuso(estado.casa.tz)}.json`);
+    const nome = `casa-${hojeNoFuso(estado.casa.tz)}.json`;
+    const b = path.join(dir, 'backup', nome);
     if (!fs.existsSync(b)) fs.copyFileSync(arquivo, b);
+    copiarExtra(b, nome);
+  }
+  /** Cópia do backup do dia na pasta extra. Se falhar (OneDrive fora, disco cheio), avisa e segue. */
+  function copiarExtra(b, nome) {
+    if (!extra) return;
+    const alvo = path.join(extra, nome);
+    if (fs.existsSync(alvo)) return;
+    try {
+      fs.mkdirSync(extra, { recursive: true });
+      fs.copyFileSync(b, alvo);
+    } catch (err) {
+      console.error(`Aviso: não consegui copiar o backup para ${extra}: ${err.message}`);
+    }
   }
   if (tokensNovos) salvar();
+  else {
+    // ao subir: garante o backup de hoje, também na pasta extra, mesmo sem nenhuma ação ainda
+    const nome = `casa-${hojeNoFuso(estado.casa.tz)}.json`;
+    const b = path.join(dir, 'backup', nome);
+    if (!fs.existsSync(b)) fs.copyFileSync(arquivo, b);
+    copiarExtra(b, nome);
+  }
 
   function quemPeloToken(t) {
     if (!t) return null;

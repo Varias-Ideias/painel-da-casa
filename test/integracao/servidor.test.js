@@ -152,6 +152,22 @@ test('/parear usa o IP ATUAL (o links.txt tem o antigo) e prefere a rede de casa
   fs.rmSync(path.join(dir, 'links.txt'));
 });
 
+test('backup extra: cópia do dia vai para a segunda pasta, e falha nela não derruba nada', async () => {
+  const d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'painel2-'));
+  const extra = path.join(d2, 'onedrive', 'painel-backup');
+  const { servidor: s2 } = criarServidor({ dados: d2, silencioso: true, backupExtra: extra });
+  assert.equal(fs.readdirSync(extra).length, 1);
+  assert.match(fs.readdirSync(extra)[0], /^casa-\d{4}-\d{2}-\d{2}\.json$/);
+  s2.close();
+  // pasta extra impossível (um arquivo no caminho): só avisa
+  const bloqueio = path.join(d2, 'arquivo');
+  fs.writeFileSync(bloqueio, 'x');
+  const erroOriginal = console.error; console.error = () => {};
+  try { assert.doesNotThrow(() => criarServidor({ dados: fs.mkdtempSync(path.join(os.tmpdir(), 'painel3-')), silencioso: true, backupExtra: path.join(bloqueio, 'sub') })); }
+  finally { console.error = erroOriginal; }
+  fs.rmSync(d2, { recursive: true, force: true });
+});
+
 test('backup diário existe desde a primeira gravação', () => {
   const b = fs.readdirSync(path.join(dir, 'backup'));
   assert.equal(b.length, 1);
