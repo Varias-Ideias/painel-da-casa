@@ -444,28 +444,25 @@ function itensOrdenados() {
   const ord = (i) => { const k = vista.secoes.indexOf(i.secao); return k < 0 ? 99 : k; };
   return [...vista.mercado].sort((a, b) => (ord(a) - ord(b)) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
-/** Item com bolinha: tocar marca, risca e o item sai da lista (vai para o carrinho, com desfazer). */
+/** Item com bolinha: tocar marca ✓, risca e o item some da lista (com desfazer no aviso). */
 function itemRow(i, editar) {
-  const btn = `<button type="button" class="item ${i.comprado_em ? 'no-carrinho' : ''}" data-item="${esc(i.id)}" aria-label="${i.comprado_em ? 'Tirar do carrinho' : 'Marcar como comprado'}: ${esc(i.nome)}">
-    <span class="bola" aria-hidden="true">${i.comprado_em ? '✓' : ''}</span><span class="n">${esc(i.nome)}</span><span class="qtd">${esc(i.qtd)}</span></button>`;
-  // ✕ tira da lista (com desfazer); ⋯ (no celular) edita quantidade e seção
-  const tirar = `<button type="button" class="mexer tirar" data-item-del="${esc(i.id)}" aria-label="Tirar ${esc(i.nome)} da lista">✕</button>`;
-  return `<div class="linha-item">${btn}${editar ? `<button type="button" class="mexer" data-item-edit="${esc(i.id)}" aria-label="Editar ${esc(i.nome)}">⋯</button>` : ''}${tirar}</div>`;
+  const btn = `<button type="button" class="item" data-item="${esc(i.id)}" aria-label="Pegou: ${esc(i.nome)}">
+    <span class="bola" aria-hidden="true"></span><span class="n">${esc(i.nome)}</span><span class="qtd">${esc(i.qtd)}</span></button>`;
+  if (!editar) return btn;
+  // no celular, ⋯ edita quantidade e seção
+  return `<div class="linha-item">${btn}<button type="button" class="mexer" data-item-edit="${esc(i.id)}" aria-label="Editar ${esc(i.nome)}">⋯</button></div>`;
 }
 function renderMercado(el) {
   const agrupar = el.dataset.agrupar === '1';
   const editar = el.dataset.editar === '1';
-  const soCarrinho = el.dataset.carrinho === '1';
   if (!el.dataset.pronto) {
-    el.innerHTML = `<header><h2>${soCarrinho ? 'No carrinho' : 'Mercado'}</h2>${soCarrinho ? '' : '<button type="button" class="chip" data-a="mercado-rapido" aria-label="Escolher itens por toque">＋ Itens</button>'}</header>
-      ${el.dataset.semcampo || soCarrinho ? '' : `<form class="anotar" data-form="mercado"><input name="texto" list="catalogo-lista" autocomplete="off" enterkeyhint="done" placeholder="leite, pão e 2 dúzias de ovos" aria-label="Adicionar itens ao mercado"><button type="submit">Adicionar</button></form>`}
-      <div class="chips"></div><div class="lista"></div><div class="carrinho"></div>`;
+    el.innerHTML = `<header><h2>Mercado</h2><button type="button" class="chip" data-a="mercado-rapido" aria-label="Escolher itens por toque">＋ Itens</button></header>
+      ${el.dataset.semcampo ? '' : `<form class="anotar" data-form="mercado"><input name="texto" list="catalogo-lista" autocomplete="off" enterkeyhint="done" placeholder="leite, pão e 2 dúzias de ovos" aria-label="Adicionar itens ao mercado"><button type="submit">Adicionar</button></form>`}
+      <div class="lista"></div>`;
     el.dataset.pronto = '1';
   }
-  const todos = itensOrdenados();
-  const faltam = todos.filter((i) => !i.comprado_em);
-  const noCarrinho = todos.filter((i) => i.comprado_em);
-  const itens = soCarrinho ? noCarrinho : faltam;
+  // só o que falta comprar; o que já foi pego some (fica guardado só para "desfazer" e para o app lembrar do item)
+  const itens = itensOrdenados().filter((i) => !i.comprado_em);
   let corpo = '';
   if (agrupar) {
     let ultima = '';
@@ -476,17 +473,11 @@ function renderMercado(el) {
   } else {
     corpo = itens.map((i) => itemRow(i, editar)).join('');
   }
-  if (!itens.length) corpo = soCarrinho ? '<p class="vazio">Nada no carrinho.</p>' : '<p class="vazio">Nada na lista. Toque em ＋ Itens ou escreva na barra do ＋.</p>';
+  if (!itens.length) corpo = '<p class="vazio">Nada na lista. Toque em ＋ Itens ou escreva na barra do ＋.</p>';
   const lista = $('.lista', el);
   const rolagem = lista.scrollTop; // redesenhar (ex.: alguém marcou no celular) não pode jogar a lista para o topo
   lista.innerHTML = corpo;
   lista.scrollTop = rolagem;
-  const naLista = new Set(faltam.map((i) => i.nome_norm));
-  const freq = soCarrinho ? [] : Object.entries(vista.catalogo || {}).filter(([n]) => !naLista.has(n)).sort((a, b) => (b[1].vezes || 0) - (a[1].vezes || 0)).slice(0, Number(el.dataset.chips ?? 4));
-  $('.chips', el).innerHTML = freq.map(([, c]) => `<button type="button" class="chip" data-chip="${esc(c.nome)}">+ ${esc(c.nome)}</button>`).join('');
-  $('.carrinho', el).innerHTML = noCarrinho.length
-    ? `<span>🧺 ${noCarrinho.length} no carrinho</span><span class="acoes">${soCarrinho ? '' : '<button type="button" data-a="ver-carrinho">Ver</button>'}<button type="button" data-a="limpar">Limpar</button></span>`
-    : (soCarrinho ? '' : '<span class="dica">Toque num item quando pegar: ele sai da lista e vai para o carrinho.</span>');
 }
 function editarItem(id) {
   const i = vista.mercado.find((x) => x.id === id);
@@ -911,7 +902,7 @@ function layoutPainel() {
       ${cachorros}
       ${pessoas().map((p) => grupo(`<div class="quem" data-mod="quem" data-pessoa="${esc(p.id)}"></div><div class="mini" data-mod="registro" data-pessoa="${esc(p.id)}"></div>`, p.id)).join('')}
     </div></section>
-    <section class="card" id="merc" data-mod="mercado" data-chips="3" data-semcampo="1"></section>
+    <section class="card" id="merc" data-mod="mercado" data-semcampo="1"></section>
     <section class="card" id="fotos" data-mod="fotos" data-a="foto"></section></main>`;
 }
 
@@ -929,7 +920,7 @@ function montarAba() {
   $('#titulo-aba').textContent = ABAS.find((a) => a[0] === aba)?.[2] || '';
   const minha = eu !== 'casa' ? eu : null;
   if (aba === 'mercado') {
-    m.innerHTML = `<section class="card" data-mod="mercado" data-agrupar="1" data-editar="1" data-chips="6"></section>`;
+    m.innerHTML = `<section class="card" data-mod="mercado" data-agrupar="1" data-editar="1"></section>`;
   } else if (aba === 'pendencias') {
     m.innerHTML = `<section class="card" data-mod="pendencias" data-form="1" data-proximas="1"></section>`;
   } else if (aba === 'registro') {
@@ -1201,17 +1192,15 @@ function mostrarParear() {
 // ---------------------------------------------------------------- eventos
 document.addEventListener('click', (e) => {
   const t = e.target;
-  if (t.closest('.veu') && !t.closest('[data-hab-marcar],[data-hab-det],[data-item],[data-item-edit],[data-item-del],[data-chip],[data-pend-ok],[data-pend-edit],[data-a]')) return;
+  if (t.closest('.veu') && !t.closest('[data-hab-marcar],[data-hab-det],[data-item],[data-item-edit],[data-chip],[data-pend-ok],[data-pend-edit],[data-a]')) return;
   let x;
   if ((x = t.closest('[data-hab-marcar]'))) return marcarHab(x.dataset.habMarcar);
   if ((x = t.closest('[data-hab-det]'))) return detalheHab(x.dataset.habDet);
   if ((x = t.closest('[data-item-edit]'))) return editarItem(x.dataset.itemEdit);
-  if ((x = t.closest('[data-item-del]'))) return agir('mercado.remover', { id: x.dataset.itemDel });
   if ((x = t.closest('[data-item]'))) {
     // risca e desliza para fora antes de sair da lista; depois a ação (com desfazer no aviso)
     if (x.classList.contains('saindo')) return;
     const id = x.dataset.item;
-    if (x.classList.contains('no-carrinho')) return agir('mercado.alternar', { id });
     x.classList.add('saindo');
     setTimeout(() => agir('mercado.alternar', { id }), 650);
     return;
@@ -1232,8 +1221,6 @@ document.addEventListener('click', (e) => {
   if (a === 'tela-cheia') return telaCheia();
   if (a === 'limpar') return agir('mercado.limpar');
   if (a === 'foto') { proximaFoto(); reiniciarFotos(); return; }
-  if (a === 'ver-carrinho') return sheet('<section class="card" data-mod="mercado" data-carrinho="1" data-agrupar="1" style="border:0;padding:0;overflow:visible;background:none;box-shadow:none"></section><p class="dica">Tocou por engano? Toque no item para ele voltar para a lista.</p>', (s) => renderMercado($('[data-mod]', s)));
-  if (a === 'mais-merc') return sheet('<section class="card" data-mod="mercado" data-agrupar="1" data-editar="1" data-semcampo="1" data-chips="0" style="border:0;padding:0;overflow:visible"></section>', (s) => renderMercado($('[data-mod]', s)));
   if (a === 'mais-pend') return sheet('<section class="card" data-mod="pendencias" data-proximas="1" style="border:0;padding:0;overflow:visible"></section>', (s) => renderPend($('[data-mod]', s)));
 });
 
