@@ -47,6 +47,25 @@ Na primeira vez, o servidor cria:
 
 A pasta `dados/` fica **fora do git** de propósito: tem dado real e segredo.
 
+**Backup fora deste disco:** em `dados/config.json`, `"backup_extra"` aponta para uma segunda pasta
+(hoje `OneDrive\Documentos\painel-da-casa-backup`). O servidor copia para lá o backup de cada dia.
+Esse backup é o estado completo da casa, **inclusive diário e gratidão**; os links secretos não vão
+(só o hash). Para tirar essa cópia, apague a linha.
+
+### Em outro computador
+
+```bash
+git clone https://github.com/Varias-Ideias/painel-da-casa.git
+cd painel-da-casa
+npm install
+npm test
+```
+
+O `npm install` baixa o núcleo do GitHub privado `Varias-Ideias/plataforma`, então a máquina precisa
+de acesso a ele (`gh auth login`). Os **dados da casa não vêm junto**: para mudar o servidor de
+máquina, copie a pasta `dados/` inteira, ou só um backup renomeado para `dados/casa.json`, mais o
+`links.txt`.
+
 ### Parear os aparelhos (uma vez)
 
 1. Com o servidor rodando, abra **no computador**: `http://localhost:8765/parear`
