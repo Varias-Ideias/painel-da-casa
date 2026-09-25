@@ -71,7 +71,7 @@ a { color: var(--accent); }
 .tile .t { font-weight: 700; font-size: .88rem; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile .s { font-size: .74rem; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 /* na aba Hoje do celular a barra já tem o ＋: o do topo sai para não ficar dobrado */
-body[data-aba-atual="hoje"] .cel .cabeca .mais-rapido { display: none; }
+
 .tile.feito { background: color-mix(in oklab, var(--accent) 16%, transparent); border-color: color-mix(in oklab, var(--accent) 35%, transparent); }
 .tile.feito .anel .emoji { filter: saturate(1.1); }
 .tile .ok { position: absolute; top: 8px; right: 10px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: .72rem; display: grid; place-items: center; font-weight: 700; }

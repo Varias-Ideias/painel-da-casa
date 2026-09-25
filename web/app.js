@@ -898,7 +898,7 @@ function layoutPainel() {
   const cachorros = pets().length ? grupo(`<div class="quem" data-pessoa-menu="pets" role="button" style="--cor:var(--pet)"><div class="av">🐶</div><strong>${esc(pets().map((p) => p.nome).join(' e '))}</strong></div>`, 'pets') : '';
   return `<main class="painel C">
     <section class="card" id="agora"><div class="linha"><div class="relogio" data-mod="relogio"></div>${botoesTopo()}</div>
-      <div data-mod="captura"></div><div data-mod="pendencias" data-proximas="1"></div>
+      <div data-mod="pendencias" data-proximas="1"></div>
       <div class="linha"><span data-mod="sync"></span><span class="selo" data-mod="tela"></span></div></section>
     <section class="card" id="hab"><header><h2>Hoje</h2></header><div class="grupos">
       ${cachorros}
@@ -929,7 +929,7 @@ function montarAba() {
     montarRegistroCel(m, minha);
     return;
   } else {
-    m.innerHTML = `<div data-mod="captura"></div>
+    m.innerHTML = `
       ${minha && pets().length ? `<section class="card"><header><h2 data-pessoa-menu="pets" role="button">🐶 ${esc(pets().map((p) => p.nome).join(' e '))}</h2></header><div class="fila" data-mod="habitos" data-dono="pets" data-rotulos="0"></div></section>` : ''}
       ${minha ? `<section class="card"><div class="quem" data-mod="quem" data-pessoa="${esc(minha)}"></div><div class="fila" data-mod="habitos" data-dono="${esc(minha)}"></div></section>` : `<section class="card"><header><h2>Hábitos</h2></header><div class="lista" data-mod="habitos" data-dono="todos"></div></section>`}
       <section class="card" data-mod="pendencias" data-ate="0"></section>
