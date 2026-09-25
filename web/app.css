@@ -1,0 +1,125 @@
+/* Painel da Casa: layouts do painel (A, B, C), modo celular e telas auxiliares. base.css traz tokens e componentes. */
+.carregando { padding: 40px 20px; color: var(--muted); }
+a { color: var(--accent); }
+.selo-sync { font-size: .8rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.selo-sync i { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); }
+.selo-sync.off i { background: var(--warn); }
+.selo-sync.erro i { background: var(--late); }
+.corpo { display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
+.card > .corpo { flex: 1; }
+/* no painel as listas ocupam o resto do cartão, para `caber()` medir o espaço real */
+.painel [data-mod="mercado"] > .lista, .painel [data-mod="pendencias"] > .lista { flex: 1 1 0; }
+.linha { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.acoes a.icone { display: grid; place-items: center; text-decoration: none; color: var(--ink); }
+.anotar.captura input { border-color: var(--accent-soft); }
+
+/* ---------- Painel A: colunas por assunto ---------- */
+.painel.A { grid-template: "topo topo topo" auto "hab merc pend" 1fr / 1.15fr 1fr 1fr; }
+.A .topo { grid-area: topo; display: grid; grid-template-columns: auto 1fr 1fr minmax(260px, .9fr); gap: 14px; align-items: stretch; }
+.A .topo .card { padding: 12px 16px; }
+.A .topo .relogio { justify-content: center; padding-right: 10px; }
+.A .topo .lado { display: flex; flex-direction: column; gap: 8px; justify-content: space-between; }
+.A #hab { grid-area: hab; } .A #merc { grid-area: merc; } .A #pend { grid-area: pend; }
+@media (orientation: portrait) {
+  .painel.A { grid-template: "topo topo" auto "hab pend" 1fr "merc merc" .85fr / 1fr 1fr; }
+  .A .topo { grid-template-columns: auto 1fr 1fr; }
+  .A .topo .lado { grid-column: 1 / -1; flex-direction: row; align-items: center; }
+  .A .topo .lado .anotar { flex: 1; }
+}
+
+/* ---------- Painel B: pessoas em cima, casa embaixo ---------- */
+.painel.B { grid-template: "m k casa" 1.05fr "merc merc pend" 1fr / 1fr 1fr 1fr; }
+.B .pessoa { border-top: 6px solid var(--cor); }
+.B .pessoa .div { border-top: 1px solid var(--line); padding-top: 10px; margin-top: auto; }
+.B #pm { grid-area: m; } .B #pk { grid-area: k; } .B #casa { grid-area: casa; --cor: var(--pet); }
+.B #merc { grid-area: merc; } .B #pend { grid-area: pend; }
+.B #merc .lista, .C #merc .lista { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: min-content; column-gap: 10px; }
+.C #merc .lista { grid-template-columns: 1fr 1fr 1fr; }
+.B #merc .lista .mais, .C #merc .lista .mais { grid-column: 1 / -1; }
+@media (orientation: portrait) {
+  .painel.B { grid-template: "m k" 1fr "casa casa" auto "merc pend" 1fr / 1fr 1fr; }
+  .B #casa { display: grid; grid-template-columns: auto 1fr; align-items: start; }
+  .B #casa .relogio-bloco { grid-row: span 2; }
+  .B #casa [data-mod="habitos"] { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+  .B #merc .lista { grid-template-columns: 1fr; }
+}
+
+/* ---------- Painel C: agora à esquerda, hábitos em grade ---------- */
+.painel.C { grid-template: "agora hab" 1.1fr "agora merc" 1fr / .8fr 1.2fr; }
+.C #agora { grid-area: agora; } .C #hab { grid-area: hab; } .C #merc { grid-area: merc; }
+.C #agora .relogio .hora { font-size: 4.4rem; }
+.C #agora [data-mod="pendencias"] { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.fila { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.pess { display: grid; grid-template-columns: 190px 1fr; gap: 14px; align-items: start; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.C #hab { overflow-y: auto; overscroll-behavior: contain; }
+.C .pess .quem .muted { display: none; }
+.C .pess .quem strong { font-size: 1.15rem; }
+.mini .vazio { font-size: .85rem; }
+.pess:last-child { border-bottom: 0; padding-bottom: 0; }
+.pess > div:first-child { display: flex; flex-direction: column; gap: 6px; }
+.fila .hab { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 4px; background: var(--surface-2); border-radius: 16px; padding: 10px 6px; }
+.fila .hab .nome { text-align: center; white-space: normal; font-size: .95rem; min-height: 0; }
+.fila .hab .nome small, .fila .hab .nome .pontos { display: none; }
+.fila .hab .seq { text-align: center; font-size: 1rem; }
+.fila .hab .seq small { display: inline; margin-left: 4px; }
+.mini .escala span { width: 60px; }
+.mini .destaque { font-size: .9rem; }
+@media (orientation: portrait) {
+  .painel.C { grid-template: "agora hab" 1fr "merc merc" .75fr / .9fr 1.1fr; }
+  .C #agora .relogio .hora { font-size: 3.4rem; }
+  .pess { grid-template-columns: 1fr; }
+  .mini { display: none; }
+  .C #merc .lista { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------- Celular ---------- */
+.cel { min-height: 100dvh; display: flex; flex-direction: column; }
+.cel header.cabeca {
+  position: sticky; top: 0; z-index: 5; background: var(--bg); display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+}
+.cel header.cabeca { flex: none; }
+.cel header.cabeca h1 { font-size: 1.5rem; }
+.cel main { flex: 1 0 auto; padding: 4px 16px calc(96px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; }
+.cel .card { overflow: visible; flex: none; }
+/* a aba já diz "Mercado"/"Pendências": o cartão não repete o título */
+.cel #aba > [data-mod="mercado"] > header h2, .cel #aba > [data-mod="pendencias"][data-form] > header h2 { display: none; }
+.cel .lista { overflow: visible; }
+.abas {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--surface); border-top: 1px solid var(--line); padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+}
+.abas button { min-height: 58px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: .8rem; color: var(--muted); font-weight: 700; }
+.abas button span { font-size: 1.35rem; }
+.abas button[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+.navdia { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.navdia strong { font-family: var(--display); font-size: 1.2rem; text-transform: capitalize; }
+.campo { display: flex; flex-direction: column; gap: 6px; }
+.campo label, .rot { font-weight: 700; font-size: .95rem; }
+.campo input, .campo select, .campo textarea, .sheet select, .sheet input[type="text"], .sheet input[type="number"], .sheet input[type="date"] {
+  min-height: 52px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface-2); padding: 0 14px; font: inherit; color: inherit; width: 100%;
+}
+.campo textarea { padding: 12px 14px; min-height: 110px; resize: vertical; }
+.dica { font-size: .85rem; color: var(--muted); }
+.sel { min-height: 48px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface-2); padding: 0 10px; font: inherit; color: inherit; width: 100%; }
+.privado-tag { font-size: .75rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 99px; padding: 2px 10px; }
+.grade2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.botao { min-height: 52px; border-radius: 14px; background: var(--accent); color: var(--accent-ink); font-weight: 700; padding: 0 18px; }
+.botao.sec { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+.botao.perigo { background: var(--late-soft); color: var(--late); }
+.item .mexer { min-width: 44px; min-height: 44px; border-radius: 10px; color: var(--muted); }
+.item { grid-template-columns: 1fr auto; }
+.cel .item { grid-template-columns: 1fr auto auto; }
+
+/* ---------- Ajustes, pareamento, toasts com opções ---------- */
+.ajuste { display: flex; flex-direction: column; gap: 10px; padding-block: 6px; border-bottom: 1px solid var(--line); }
+.ajuste:last-child { border-bottom: 0; }
+.opcoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.opcoes button { min-height: 48px; padding: 0 16px; border-radius: 12px; background: var(--surface-2); border: 2px solid var(--line); font-weight: 700; }
+.opcoes button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.linha-hab { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; min-height: 52px; }
+.linha-hab.arq { opacity: .55; }
+.parear { max-width: 520px; margin: 0 auto; padding: calc(40px + env(safe-area-inset-top, 0px)) 20px 40px; display: flex; flex-direction: column; gap: 16px; }
+.toast .opts { display: flex; gap: 8px; flex-wrap: wrap; }
+.toast.erro { background: var(--late); color: #fff; }
+.toast.pergunta { flex-direction: column; align-items: stretch; padding: 14px; }

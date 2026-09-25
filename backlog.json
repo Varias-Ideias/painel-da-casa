@@ -1,45 +1,23 @@
 {
   "itens": [
-    {
-      "id": "F1",
-      "titulo": "Fase 1: layouts do painel (iPad paisagem/retrato + celular) com dados fictícios",
-      "tamanho": "fase",
-      "risco": "baixo",
-      "faixa": "claude-code",
-      "depende_de": [],
-      "pai": null,
-      "estado": "aguardando-aprovacao-fase-0"
-    },
-    {
-      "id": "B1",
-      "titulo": "Esqueleto Next.js + TS estrito + Tailwind + shadcn/ui com o seed fictício em JSON (sem Supabase)",
-      "tamanho": "1 sessão",
-      "risco": "baixo",
-      "faixa": "claude-code",
-      "depende_de": [],
-      "pai": "F1",
-      "estado": "pronto-para-comecar"
-    },
-    {
-      "id": "B2",
-      "titulo": "2 ou 3 propostas do painel do iPad (1366×1024 e 1024×1366), alvos ≥ 56 px, legível a 2 m",
-      "tamanho": "1 sessão",
-      "risco": "baixo",
-      "faixa": "claude-code",
-      "depende_de": ["B1"],
-      "pai": "F1",
-      "estado": "a-fazer"
-    },
-    {
-      "id": "B3",
-      "titulo": "Versão do celular com abas (Hoje, Mercado, Pendências, Registro) + preview para abrir no iPad",
-      "tamanho": "1 sessão",
-      "risco": "medio",
-      "faixa": "claude-code",
-      "depende_de": ["B2"],
-      "pai": "F1",
-      "estado": "a-fazer",
-      "pare": "criar o projeto na Vercel é item do PARE.md: pedir ok ao dono antes"
-    }
+    { "id": "F1", "titulo": "Fase 1: layouts do painel — entregue como opção do app (A, B, C)", "tamanho": "fase", "risco": "baixo", "faixa": "claude-code", "depende_de": [], "pai": null, "estado": "feito-aguardando-escolha-do-dono" },
+    { "id": "B1", "titulo": "App funcionando sem dependências (servidor Node + domínio testado)", "tamanho": "1 sessão", "risco": "baixo", "faixa": "claude-code", "depende_de": [], "pai": "F1", "estado": "feito" },
+    { "id": "B2", "titulo": "Propostas do painel A/B/C em paisagem e retrato", "tamanho": "1 sessão", "risco": "baixo", "faixa": "claude-code", "depende_de": ["B1"], "pai": "F1", "estado": "feito" },
+    { "id": "B3", "titulo": "Versão do celular com abas", "tamanho": "1 sessão", "risco": "baixo", "faixa": "claude-code", "depende_de": ["B2"], "pai": "F1", "estado": "feito" },
+
+    { "id": "D1", "titulo": "Dono: parear iPad e celulares pelo /parear e usar 1 dia; escolher o layout", "tamanho": "dono", "risco": "baixo", "faixa": "dono", "depende_de": ["B3"], "pai": null, "estado": "a-fazer" },
+    { "id": "D2", "titulo": "Dono: decidir onde o banco mora (pausar projeto Supabase, dividir um existente, pagar Pro ou ficar no computador)", "tamanho": "dono", "risco": "alto", "faixa": "dono", "depende_de": [], "pai": null, "estado": "a-fazer", "pare": "nuvem/custo" },
+    { "id": "D3", "titulo": "Dono: liberar npm nesta máquina para a migração para Next.js", "tamanho": "dono", "risco": "baixo", "faixa": "dono", "depende_de": [], "pai": null, "estado": "a-fazer" },
+
+    { "id": "V1", "titulo": "Medir no Wi-Fi real: item no celular aparece no iPad em até 2 s", "tamanho": "1 sessão", "risco": "baixo", "faixa": "claude-code", "depende_de": ["D1"], "pai": null, "estado": "a-fazer" },
+    { "id": "V2", "titulo": "Testar no Safari do iPad e do iPhone: tela cheia pela Tela de Início, toques, retrato/paisagem", "tamanho": "1 sessão", "risco": "medio", "faixa": "claude-code", "depende_de": ["D1"], "pai": null, "estado": "a-fazer" },
+    { "id": "V3", "titulo": "Atalho da Siri de verdade no iPhone (guia do README)", "tamanho": "1 sessão", "risco": "baixo", "faixa": "claude-code", "depende_de": ["D1"], "pai": "F5", "estado": "a-fazer" },
+
+    { "id": "M1", "titulo": "Migrar para Next.js + Supabase mantendo src/dominio e os testes (RLS por casa, Realtime)", "tamanho": "fase", "risco": "alto", "faixa": "claude-code", "depende_de": ["D2", "D3"], "pai": null, "estado": "bloqueado" },
+    { "id": "P1", "titulo": "HTTPS em casa (ex.: tailscale cert) para tela sempre acesa e app offline no iPad", "tamanho": "1 sessão", "risco": "medio", "faixa": "claude-code", "depende_de": ["D1"], "pai": null, "estado": "a-fazer" },
+    { "id": "P2", "titulo": "Modo descanso: escurecer depois de X min e à noite; um toque acorda (Fase 6)", "tamanho": "1 sessão", "risco": "baixo", "faixa": "claude-code", "depende_de": [], "pai": "F6", "estado": "a-fazer" },
+    { "id": "P3", "titulo": "Números do dia (sono, peso) quando alguém pedir", "tamanho": "1 sessão", "risco": "baixo", "faixa": "claude-code", "depende_de": [], "pai": null, "estado": "a-fazer" },
+    { "id": "P4", "titulo": "Alexa: prova de viabilidade de 1 dia (Fase 5)", "tamanho": "1 sessão", "risco": "medio", "faixa": "claude-code", "depende_de": ["V3"], "pai": "F5", "estado": "a-fazer" },
+    { "id": "P5", "titulo": "Smoke E2E com Playwright (precisa de npm)", "tamanho": "1 sessão", "risco": "baixo", "faixa": "claude-code", "depende_de": ["D3"], "pai": null, "estado": "bloqueado" }
   ]
 }

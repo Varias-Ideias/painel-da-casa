@@ -1,4 +1,24 @@
-# Arquitetura — Painel da Casa (proposta da Fase 0, aguardando aprovação)
+# Arquitetura — Painel da Casa
+
+## Como roda hoje (provisório, até decidir a nuvem — DECISIONS D12 a D16)
+
+```
+iPad (painel) ─┐                       ┌─ src/dominio/  (lógica pura, testada, portável)
+iPhones ───────┼─ Wi-Fi ─► servidor/ (Node puro, porta 8765) ─► dados/casa.json (+ backup diário)
+Siri/Atalhos ──┘   POST /api/acao · GET /api/estado · GET /api/eventos (SSE) · POST /api/capture
+```
+
+- **O aparelho** aplica a ação na hora com o mesmo `src/dominio/acoes.js`, põe na fila (localStorage)
+  e envia. O servidor aplica, grava, sobe a versão e avisa por SSE; os outros recarregam o estado.
+- **Ids determinísticos:** um item criado pela ação `X` recebe o id `X.0`, `X.1`… no aparelho e no
+  servidor. Por isso o "desfazer" calculado no aparelho funciona no servidor.
+- **Privacidade:** `filtrarPara(estado, quem)` tira tokens, log e o privado dos outros antes de
+  responder; o painel da casa (`quem = 'casa'`) não recebe nenhum diário.
+- **O que migra para a stack alvo:** `src/dominio/` e os testes. O `servidor/` vira rotas do Next.js
+  mais o Supabase (Realtime no lugar do SSE, Postgres + RLS no lugar do JSON), mantendo o formato das
+  ações.
+
+## Stack alvo (proposta da Fase 0)
 
 ## Visão geral
 

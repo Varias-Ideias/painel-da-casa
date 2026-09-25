@@ -1,11 +1,15 @@
 {
   "name": "painel-da-casa",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Hábitos, mercado, pendências e registro do dia num painel sempre aberto no iPad da casa.",
+  "type": "module",
   "scripts": {
+    "start": "node servidor/servidor.js",
     "portoes": "portao-contexto",
-    "test": "portao-contexto"
+    "unit": "node --test \"test/unit/*.test.js\"",
+    "integracao": "node --test \"test/integracao/*.test.js\"",
+    "test": "portao-contexto && node --test \"test/unit/*.test.js\" \"test/integracao/*.test.js\""
   },
   "engines": {
     "node": ">=20"
