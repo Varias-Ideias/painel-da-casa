@@ -7,6 +7,7 @@ import { normalizar, separarItens, secaoDe, SECOES_PADRAO } from './mercado.js';
 import { interpretar } from './parser.js';
 import { estadoHabito } from './habitos.js';
 import { formatoRelativo } from './datas.js';
+import { gerarExemplos } from './exemplos.js';
 
 export class ErroAcao extends Error {
   /** @param {string} msg @param {number} [status] */
@@ -306,23 +307,42 @@ export function aplicar(estado, acao, ctx) {
     }
 
     // ---------------- dados de exemplo ----------------
+    case 'exemplos.gerar': {
+      // troca os exemplos atuais pelos ricos (90 dias); o que é da casa de verdade não é tocado
+      aplicar(estado, { tipo: 'exemplos.remover', dados: {} }, ctx);
+      const g = gerarExemplos(estado, ctx.hoje);
+      estado.habitos.push(...g.habitos);
+      estado.eventos.push(...g.eventos);
+      estado.mercado.push(...g.mercado.filter((i) => !estado.mercado.some((x) => x.nome_norm === i.nome_norm)));
+      estado.pendencias.push(...g.pendencias);
+      for (const i of g.mercado) estado.catalogo[i.nome_norm] ||= { nome: i.nome, secao: i.secao, vezes: 3, ultimo: ctx.hoje };
+      for (const [m, dias] of Object.entries(g.registro)) {
+        estado.registro[m] ||= {};
+        for (const [dd, r] of Object.entries(dias)) if (!estado.registro[m][dd]) estado.registro[m][dd] = r;
+      }
+      return { resultado: { habitos: g.habitos.length, eventos: g.eventos.length }, fala: 'Exemplos de 90 dias gerados.', desfazer: { tipo: 'exemplos.remover', dados: {} } };
+    }
     case 'exemplos.remover': {
+      const idsHab = new Set(estado.habitos.filter((h) => h.exemplo).map((h) => h.id));
       const removido = {
-        eventos: estado.eventos.filter((x) => x.origem === 'exemplo'),
+        habitos: estado.habitos.filter((h) => h.exemplo),
+        eventos: estado.eventos.filter((x) => x.origem === 'exemplo' || idsHab.has(x.habito)),
         mercado: estado.mercado.filter((x) => x.origem === 'exemplo'),
         pendencias: estado.pendencias.filter((x) => x.origem === 'exemplo'),
         registro: /** @type {any[]} */ ([]),
       };
-      estado.eventos = estado.eventos.filter((x) => x.origem !== 'exemplo');
+      estado.habitos = estado.habitos.filter((h) => !h.exemplo);
+      estado.eventos = estado.eventos.filter((x) => x.origem !== 'exemplo' && !idsHab.has(x.habito));
       estado.mercado = estado.mercado.filter((x) => x.origem !== 'exemplo');
       estado.pendencias = estado.pendencias.filter((x) => x.origem !== 'exemplo');
       for (const [m, dias] of Object.entries(estado.registro)) for (const [dd, r] of Object.entries(dias)) {
         if (r.exemplo) { removido.registro.push({ m, dd, r }); delete dias[dd]; }
       }
-      const total = removido.eventos.length + removido.mercado.length + removido.pendencias.length + removido.registro.length;
+      const total = removido.habitos.length + removido.eventos.length + removido.mercado.length + removido.pendencias.length + removido.registro.length;
       return { resultado: { total }, fala: total ? 'Dados de exemplo removidos.' : 'Não havia dados de exemplo.', desfazer: { tipo: 'exemplos.restaurar', dados: removido } };
     }
     case 'exemplos.restaurar': {
+      estado.habitos.push(...(d.habitos || []).filter((h) => !estado.habitos.some((x) => x.id === h.id)));
       estado.eventos.push(...(d.eventos || []));
       estado.mercado.push(...(d.mercado || []));
       estado.pendencias.push(...(d.pendencias || []));

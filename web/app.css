@@ -25,7 +25,18 @@ a { color: var(--accent); }
 /* Hoje: uma faixa por grupo (cachorros, depois cada pessoa em ordem alfabética) */
 .C #hab { gap: 4px; }
 .C #hab .grupos { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-around; gap: 6px; }
-.grupo { display: grid; grid-template-columns: 210px 1fr; gap: 16px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.grupo { display: grid; grid-template-columns: 176px 1fr; gap: 14px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+/* no painel, cada grupo é uma linha só de mosaicos compactos (rola de lado se um dia não couber) */
+.painel .grupo .fila { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; padding-block: 2px; }
+.painel .grupo .fila::-webkit-scrollbar { display: none; }
+.painel .grupo .tile { width: 100px; min-height: 0; flex: none; padding: 8px 6px 7px; border-radius: 18px; }
+.painel .grupo .tile .anel { width: 52px; height: 52px; }
+.painel .grupo .tile .anel .emoji { font-size: 1.35rem; }
+.painel .grupo .tile .anel .dentro { font-size: 1.45rem; }
+.painel .grupo .tile .t { font-size: .8rem; }
+.painel .grupo .tile .s { font-size: .68rem; }
+.painel .grupo .quem strong { font-size: 1.45rem; }
+.painel .grupo .quem .av { width: 40px; height: 40px; font-size: 1.2rem; }
 .grupo:last-child { border-bottom: 0; }
 .grupo > .lado { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .grupo .quem .muted { display: none; }
@@ -92,13 +103,28 @@ body.economia .card { background: var(--surface-solid); }
 body.economia .fotos img.on { animation: none; transform: none; }
 body.economia .fotos img { transition-duration: .6s; }
 
-/* ---------- Descanso: a tela fica ligada, escura, com o relógio andando devagar ---------- */
-.descanso { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .9); display: grid; place-items: center; cursor: pointer; animation: apaga 1.2s ease; }
-.descanso.noite { background: #000; }
-.descanso .dorme { text-align: center; color: #9FB3A3; opacity: .45; transition: transform 60s linear; }
-.descanso.noite .dorme { opacity: .22; }
-.descanso .dorme .hora { font-family: var(--display); font-size: 7rem; line-height: 1; }
-.descanso .dorme .sub { font-size: 1rem; margin-top: 8px; }
+/* No painel nada rola com o dedo: a página inteira fica presa à tela (só as sheets rolam). */
+html:has(body.modo-painel), body.modo-painel { overflow: hidden; overscroll-behavior: none; }
+body.modo-painel { position: fixed; inset: 0; }
+[data-pessoa-menu] { cursor: pointer; }
+.quem[data-pessoa-menu]:active { opacity: .7; }
+
+/* ---------- Descanso: vira um quadro com as fotos em tela cheia e a hora por cima ---------- */
+.descanso { position: fixed; inset: 0; z-index: 50; background: #000; cursor: pointer; animation: apaga 1.2s ease; overflow: hidden; }
+.descanso .quadro { position: absolute; inset: 0; transition: opacity 2s; }
+.descanso .quadro img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 2.5s ease; }
+.descanso .quadro img.on { opacity: 1; animation: kenburns 22s linear forwards; }
+body.economia .descanso .quadro img.on { animation: none; }
+.descanso::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0,0,0,.05) 50%, rgba(0,0,0,.55)); }
+.descanso .dorme { position: absolute; z-index: 1; color: #F2F5EE; text-shadow: 0 2px 18px rgba(0,0,0,.55); }
+.descanso.com-fotos .dorme { left: calc(40px + env(safe-area-inset-left, 0px)); bottom: calc(34px + env(safe-area-inset-bottom, 0px)); }
+.descanso:not(.com-fotos) .dorme { inset: 0; display: grid; place-content: center; text-align: center; color: #9FB3A3; opacity: .45; transition: transform 60s linear; }
+.descanso .dorme .hora { font-family: var(--display); font-size: 8rem; line-height: .9; }
+.descanso .dorme .sub { font-size: 1.05rem; margin-top: 10px; opacity: .9; }
+/* à noite: o quadro quase apaga, a hora fica discreta */
+.descanso.noite .quadro { opacity: .28; }
+.descanso.noite .dorme { opacity: .5; }
+.descanso.noite:not(.com-fotos) .dorme { opacity: .22; }
 @keyframes apaga { from { opacity: 0; } }
 
 /* ---------- Celular ---------- */

@@ -77,6 +77,20 @@ Uma ou duas linhas por decisão: o quê e por quê. As mais novas ficam embaixo.
   patinhas e paperclip; pausa-se só o necessário, e o paperclip é a direção da plataforma). A pausa só
   acontece quando a migração começar, para não derrubar o patinhas à toa.
 
+- **D28. O descanso entra em 15 s (novo padrão) e vira um quadro:** as fotos do Pinterest em tela
+  cheia, trocando a cada 20 s, com a hora, a data e as pendências por cima. À noite o quadro escurece.
+- **D29. Tocar no nome ou no emoji abre a pessoa:** o dia de hoje (humor, energia, destaque), a rotina
+  (marcar, ver o histórico, editar, arquivar) e "+ Nova rotina". Nos cachorros, a rotina dos dois.
+  "Hábito" passou a se chamar "rotina" na tela.
+- **D30. O painel não rola com o dedo** (a página fica presa à tela); só as sheets rolam.
+- **D31. Barra de status do iPad e bateria:** um app da Tela de Início não consegue esconder a barra
+  de status, e o Safari não deixa página nenhuma ler a bateria. Por isso não há indicador de
+  bateria (seria inventado). O botão ⛶ tenta a tela cheia e só aparece onde o navegador permite.
+- **D32. O tema saiu dos Ajustes;** fica o ☾/☀ no painel.
+- **D33. "Gerar 90 dias de exemplo" (Ajustes):** 9 rotinas a mais, histórico, humor, destaques,
+  mercado e pendências, tudo marcado como exemplo. É determinístico e removível, e não toca no que
+  é real.
+
 ## Limites gratuitos (conferidos em 25/09/2026)
 
 - **Vercel Hobby:** grátis, só para uso pessoal e não comercial, o que serve para a casa. Quem passa do

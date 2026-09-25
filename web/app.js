@@ -35,7 +35,8 @@ let servidor = LS.get(K('painel-estado'), null);
 let fila = LS.get(K('painel-fila'), []);
 let vista = null;
 let conexao = 'off';
-const prefs = Object.assign({ tema: 'dark', modo: 'auto', descanso: 3 }, LS.get('painel-prefs', {}));
+const prefs = Object.assign({ tema: 'dark', modo: 'auto', descanso: 0.25 }, LS.get('painel-prefs', {}));
+if (!prefs.v2) { prefs.descanso = 0.25; prefs.v2 = true; LS.set('painel-prefs', prefs); } // novo padrão (25/09): descanso em 15 s
 if (prefs.tema !== 'light') prefs.tema = 'dark'; // "auto" das versões antigas vira o escuro, o padrão
 let aba = LS.get('painel-aba', 'hoje');
 let diaReg = null;
@@ -291,6 +292,9 @@ function habTile(h) {
     svg = anel(s.feito ? 1 : 0);
     sub = s.seq ? `${s.seq} ${s.seq === 1 ? 'dia' : 'dias'}` : 'hoje';
   }
+  // nos cachorros, dois "Passear" precisam dizer de quem é
+  const dono = membro(h.membro);
+  if (dono?.tipo === 'pet') sub = `${dono.nome} · ${sub}`;
   const brilhou = s.feito && Date.now() - (brilho[h.id] || 0) < 1500;
   const rot = s.tipo === 'evitar' ? `Registrar deslize em ${h.nome}` : s.tipo === 'qtd' ? `Somar ${h.passo} ${h.unidade || ''} em ${h.nome}` : `Marcar ${h.nome}`;
   return `<div class="tile ${s.tipo} ${s.feito ? 'feito' : ''} ${brilhou ? 'brilha' : ''}">
@@ -364,9 +368,9 @@ function detalheHab(id) {
   });
 }
 const TIPOS_HAB = { check: 'Feito / não feito', qtd: 'Com quantidade', semana: 'X vezes por semana', evitar: 'Evitar (conta dias sem)' };
-function editarHab(id) {
-  const h = id ? vista.habitos.find((x) => x.id === id) : { nome: '', emoji: '', tipo: 'check', membro: eu !== 'casa' ? eu : pessoas()[0]?.id, meta: 2000, unidade: 'ml', passo: 250, vezes_semana: 3, apelidos: [] };
-  sheet(`<h2>${id ? 'Editar hábito' : 'Novo hábito'}</h2>
+function editarHab(id, membroPadrao = null) {
+  const h = id ? vista.habitos.find((x) => x.id === id) : { nome: '', emoji: '', tipo: 'check', membro: membroPadrao || (eu !== 'casa' ? eu : pessoas()[0]?.id), meta: 2000, unidade: 'ml', passo: 250, vezes_semana: 3, apelidos: [] };
+  sheet(`<h2>${id ? 'Editar rotina' : 'Nova rotina'}</h2>
     <form class="conteudo" style="display:flex;flex-direction:column;gap:14px" data-form-hab>
       <div class="grade2"><div class="campo"><label for="h-nome">Nome</label><input id="h-nome" type="text" required maxlength="40" value="${esc(h.nome)}"></div>
       <div class="campo"><label for="h-emoji">Emoji</label><input id="h-emoji" type="text" maxlength="4" value="${esc(h.emoji || '')}"></div></div>
@@ -586,6 +590,51 @@ function editarReg(id, dia = hoje()) {
   });
 }
 
+// ---------------------------------------------------------------- menu da pessoa
+/**
+ * Tocar no nome ou no emoji de alguém (ou dos cachorros) abre tudo daquela pessoa: o dia de hoje
+ * (humor, energia, destaque — só para pessoas), a rotina com marcar/editar/arquivar, e "+ Nova rotina".
+ * @param {string} id id do membro, ou 'pets' para os cachorros juntos
+ */
+function pessoaMenu(id) {
+  const ehPets = id === 'pets';
+  const p = ehPets ? null : membro(id);
+  if (!ehPets && !p) return;
+  const donos = ehPets ? pets().map((x) => x.id) : [id];
+  const podeRegistro = !ehPets && p.tipo === 'pessoa' && (eu === 'casa' || eu === id);
+  const desenhar = (el) => {
+    const r = podeRegistro ? vista.registro?.[id]?.[hoje()] || {} : null;
+    const hs = vista.habitos.filter((h) => donos.includes(h.membro)).sort((a, b) => (a.arquivado - b.arquivado) || (a.ordem ?? 0) - (b.ordem ?? 0));
+    el.innerHTML = `<div class="quem" style="--cor:${esc(ehPets ? 'var(--pet)' : p.cor)}"><div class="av">${ehPets ? '🐶' : esc(p.emoji)}</div><strong>${ehPets ? esc(pets().map((x) => x.nome).join(' e ')) : esc(p.nome)}</strong></div>
+      ${r ? `<h3>Hoje</h3><div class="rot">Humor</div>${gradeEscala('humor', r.humor)}<div class="rot">Energia</div>${gradeEscala('energia', r.energia)}
+        <div class="campo"><label for="pm-destaque">Destaque do dia</label><textarea id="pm-destaque" maxlength="280" placeholder="O melhor do dia, em uma ou duas linhas">${esc(r.destaque || '')}</textarea></div>` : ''}
+      <div class="linha" style="align-items:center"><h3>Rotina</h3><button type="button" class="chip" data-nova-rotina>+ Nova rotina</button></div>
+      <div class="lista" style="overflow:visible">${hs.filter((h) => !h.arquivado).map((h) => `<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px">${habRow(h)}<button type="button" class="mexer" data-editar-rotina="${esc(h.id)}" aria-label="Editar ${esc(h.nome)}">✎</button></div>`).join('') || '<p class="vazio">Nenhuma rotina ainda.</p>'}</div>
+      ${hs.some((h) => h.arquivado) ? `<details><summary class="dica">Arquivadas (${hs.filter((h) => h.arquivado).length})</summary>${hs.filter((h) => h.arquivado).map((h) => `<div class="linha-hab arq"><span>${esc(h.emoji || '•')}</span><span>${esc(h.nome)}</span><button type="button" class="chip" data-editar-rotina="${esc(h.id)}">Reativar</button></div>`).join('')}</details>` : ''}
+      <p class="dica">Toque no círculo para marcar, no nome para ver o histórico e corrigir dias, e no ✎ para editar ou arquivar.</p>`;
+  };
+  sheet('<div class="conteudo" style="display:flex;flex-direction:column;gap:14px"></div>', (s, fechar) => {
+    const c = $('.conteudo', s);
+    desenhar(c);
+    c.addEventListener('click', (e) => {
+      const b = e.target.closest('.escolha [data-v]');
+      if (b) {
+        const campo = b.parentElement.dataset.campo, v = Number(b.dataset.v);
+        const atual = vista.registro?.[id]?.[hoje()]?.[campo];
+        agir('registro.salvar', { membro: id, campos: { [campo]: atual === v ? null : v } }, { silencioso: true });
+        $$('button', b.parentElement).forEach((x) => x.classList.toggle('on', x === b && atual !== v));
+        return;
+      }
+      if (e.target.closest('[data-hab-marcar]')) { setTimeout(() => desenhar(c), 50); return; }
+      if (e.target.closest('[data-nova-rotina]')) { fechar(); return editarHab(null, ehPets ? pets()[0]?.id : id); }
+      const ed = e.target.closest('[data-editar-rotina]');
+      if (ed) { fechar(); return editarHab(ed.dataset.editarRotina); }
+    });
+    const salvar = debounce((v) => agir('registro.salvar', { membro: id, campos: { destaque: v } }, { silencioso: true }), 700);
+    c.addEventListener('input', (e) => { if (e.target.id === 'pm-destaque') salvar(e.target.value); });
+  });
+}
+
 // ---------------------------------------------------------------- módulos pequenos
 /** Fase da lua, calculada aqui mesmo (sem internet): idade desde uma lua nova conhecida. */
 function lua(agora = new Date()) {
@@ -618,6 +667,9 @@ function renderQuem(el) {
   const n = hs.filter((h) => estadoDe(h).feito).length;
   const conta = hs.filter((h) => h.tipo !== 'evitar').length;
   el.style.setProperty('--cor', p.cor);
+  el.dataset.pessoaMenu = p.id;
+  el.setAttribute('role', 'button');
+  el.setAttribute('aria-label', `Rotina e dia de ${p.nome}`);
   el.innerHTML = `<div class="av">${esc(p.emoji)}</div><strong>${esc(p.nome)}</strong>${conta ? `<span class="muted num" style="margin-left:auto">${n} de ${conta} hoje</span>` : ''}`;
 }
 function renderHabitos(el) {
@@ -658,6 +710,7 @@ async function carregarFotos() {
     for (let i = lista.length - 1; i > 0; i--) { const j2 = Math.floor(Math.random() * (i + 1)); [lista[i], lista[j2]] = [lista[j2], lista[i]]; }
     fotos = lista;
     fotosEm = Date.now();
+    if (!lista.length) setTimeout(carregarFotos, 30000); // Pinterest lento ou fora do ar: tenta de novo
     fotoI = 0;
     $$('[data-mod="fotos"]').forEach((el) => { delete el.dataset.pronto; renderFotos(el); });
   } catch { /* sem rede: fica com as que já tinha */ }
@@ -698,11 +751,20 @@ function proximaFoto() {
 const RENDER = { relogio: renderRelogio, quem: renderQuem, habitos: renderHabitos, registro: renderRegistro, mercado: renderMercado, pendencias: renderPend, sync: renderSync, captura: renderCaptura, tela: renderTela, fotos: renderFotos };
 
 // ---------------------------------------------------------------- layout do painel ("Agora", o C)
-const botoesTopo = () => `<div class="acoes"><button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${prefs.tema === 'light' ? '☀' : '☾'}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
+// Tela cheia: o iPad só deixa se o navegador tiver a API; onde não tem, o botão nem aparece.
+const podeTelaCheia = () => Boolean(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+function telaCheia() {
+  const el = document.documentElement;
+  const dentro = document.fullscreenElement || document.webkitFullscreenElement;
+  if (dentro) return (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+  const p = (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+  p?.catch?.(() => toast('Este aparelho não deixou entrar em tela cheia.'));
+}
+const botoesTopo = () => `<div class="acoes">${podeTelaCheia() ? '<button type="button" class="icone" data-a="tela-cheia" aria-label="Tela cheia">⛶</button>' : ''}<button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${prefs.tema === 'light' ? '☀' : '☾'}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
 
 function layoutPainel() {
   const grupo = (lado, dono) => `<div class="grupo"><div class="lado">${lado}</div><div class="fila" data-mod="habitos" data-dono="${esc(dono)}" data-rotulos="0"></div></div>`;
-  const cachorros = pets().length ? grupo(`<div class="quem" style="--cor:var(--pet)"><div class="av">🐶</div><strong>${esc(pets().map((p) => p.nome).join(' e '))}</strong></div>`, 'pets') : '';
+  const cachorros = pets().length ? grupo(`<div class="quem" data-pessoa-menu="pets" role="button" style="--cor:var(--pet)"><div class="av">🐶</div><strong>${esc(pets().map((p) => p.nome).join(' e '))}</strong></div>`, 'pets') : '';
   return `<main class="painel C">
     <section class="card" id="agora"><div class="linha"><div class="relogio" data-mod="relogio"></div>${botoesTopo()}</div>
       <div data-mod="captura"></div><div data-mod="pendencias"></div>
@@ -711,7 +773,7 @@ function layoutPainel() {
       ${cachorros}
       ${pessoas().map((p) => grupo(`<div class="quem" data-mod="quem" data-pessoa="${esc(p.id)}"></div><div class="mini" data-mod="registro" data-pessoa="${esc(p.id)}"></div>`, p.id)).join('')}
     </div></section>
-    <section class="card" id="merc" data-mod="mercado" data-chips="4" data-semcampo="1"></section>
+    <section class="card" id="merc" data-mod="mercado" data-chips="3" data-semcampo="1"></section>
     <section class="card" id="fotos" data-mod="fotos" data-a="foto"></section></main>`;
 }
 
@@ -736,7 +798,7 @@ function montarAba() {
     return;
   } else {
     m.innerHTML = `<div data-mod="captura"></div>
-      ${minha && pets().length ? `<section class="card"><header><h2>🐶 ${esc(pets().map((p) => p.nome).join(' e '))}</h2></header><div class="fila" data-mod="habitos" data-dono="pets" data-rotulos="0"></div></section>` : ''}
+      ${minha && pets().length ? `<section class="card"><header><h2 data-pessoa-menu="pets" role="button">🐶 ${esc(pets().map((p) => p.nome).join(' e '))}</h2></header><div class="fila" data-mod="habitos" data-dono="pets" data-rotulos="0"></div></section>` : ''}
       ${minha ? `<section class="card"><div class="quem" data-mod="quem" data-pessoa="${esc(minha)}"></div><div class="fila" data-mod="habitos" data-dono="${esc(minha)}"></div></section>` : `<section class="card"><header><h2>Hábitos</h2></header><div class="lista" data-mod="habitos" data-dono="todos"></div></section>`}
       <section class="card" data-mod="pendencias" data-ate="0"></section>
       <section class="card"><header><h2>A casa hoje</h2></header><div data-mod="registro"></div></section>`;
@@ -777,16 +839,15 @@ function montarRegistroCel(m, minha) {
 // ---------------------------------------------------------------- ajustes
 function ajustes() {
   const sou = eu === 'casa' ? 'Painel da casa' : membro(eu)?.nome || eu;
-  const temExemplos = vista.eventos.some((e) => e.origem === 'exemplo') || vista.mercado.some((i) => i.origem === 'exemplo') || vista.pendencias.some((p) => p.origem === 'exemplo');
+  const temExemplos = vista.habitos.some((h) => h.exemplo) || vista.eventos.some((e) => e.origem === 'exemplo') || vista.mercado.some((i) => i.origem === 'exemplo') || vista.pendencias.some((p) => p.origem === 'exemplo');
   const desenhar = (el) => {
     el.innerHTML = `<h2>Ajustes</h2>
     <div class="ajuste"><span class="rot">Este aparelho</span><p>${esc(sou)} · <span data-mod="sync"></span></p>
       <span class="rot">Tela</span><div class="opcoes" data-pref="modo">${[['auto', 'Automática'], ['painel', 'Painel'], ['celular', 'Celular']].map(([k, v]) => `<button type="button" data-v="${k}" class="${prefs.modo === k ? 'on' : ''}">${v}</button>`).join('')}</div>
-      <span class="rot">Tema</span><div class="opcoes" data-pref="tema">${[['dark', '☾ Floresta à noite'], ['light', '☀ Jardim de manhã']].map(([k, v]) => `<button type="button" data-v="${k}" class="${prefs.tema === k ? 'on' : ''}">${v}</button>`).join('')}</div>
       <span class="rot">Economia de bateria</span><div class="opcoes" data-pref="economia">${[['nao', 'Visual completo'], ['sim', 'Econômico']].map(([k, v]) => `<button type="button" data-v="${k}" class="${(prefs.economia || 'nao') === k ? 'on' : ''}">${v}</button>`).join('')}</div>
       <span class="dica">Econômico: sem animação no fundo, sem desfoque nos cartões, fotos sem zoom. Mesmo no visual completo, nada anima enquanto a tela descansa.</span>
-      <span class="rot">Descansar a tela depois de</span><div class="opcoes" data-pref="descanso">${[[1, '1 min'], [3, '3 min'], [5, '5 min'], [10, '10 min'], [0, 'Nunca']].map(([k, v]) => `<button type="button" data-v="${k}" class="${Number(prefs.descanso) === k ? 'on' : ''}">${v}</button>`).join('')}</div>
-      <span class="dica">A tela escurece e mostra só o relógio; entre 22h e 6h fica mais escura. Um toque acorda. Para o iPad não bloquear sozinho: Ajustes do iPad → Tela e Brilho → Bloqueio Automático → Nunca, e deixe o <b>Modo Pouca Energia desligado</b> (com ele ligado o iPad força bloqueio em 30 s).</span>
+      <span class="rot">Descansar a tela depois de</span><div class="opcoes" data-pref="descanso">${[[0.25, '15 s'], [1, '1 min'], [3, '3 min'], [10, '10 min'], [0, 'Nunca']].map(([k, v]) => `<button type="button" data-v="${k}" class="${Number(prefs.descanso) === k ? 'on' : ''}">${v}</button>`).join('')}</div>
+      <span class="dica">No descanso, as fotos do Pinterest viram um quadro em tela cheia, com a hora por cima; entre 22h e 6h fica bem mais escuro. O primeiro toque só acorda. O bloqueio automático do iPad é do iPadOS: com o Modo Pouca Energia ligado ele bloqueia em 30 s, e nenhum app muda isso.</span>
       <span class="dica" data-mod="tela"></span></div>
     <div class="ajuste"><div class="linha"><span class="rot">Hábitos</span><button type="button" class="chip" data-novo-hab>+ Novo</button></div>
       ${vista.habitos.slice().sort((a, b) => (a.arquivado - b.arquivado) || (a.ordem ?? 0) - (b.ordem ?? 0)).map((h) => `<div class="linha-hab ${h.arquivado ? 'arq' : ''}"><span style="font-size:1.4rem">${esc(h.emoji || '•')}</span>
@@ -800,7 +861,7 @@ function ajustes() {
         <button type="submit" class="chip">Salvar</button></form>`).join('')}</div>
     <div class="ajuste"><span class="rot">Ordem das seções do mercado</span><span class="dica">A ordem do corredor do seu mercado.</span>
       ${vista.secoes.map((s, i) => `<div class="linha" style="align-items:center"><span>${esc(s)}</span><span class="opcoes"><button type="button" data-sec="${i}" data-dir="-1" aria-label="Subir ${esc(s)}" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-sec="${i}" data-dir="1" aria-label="Descer ${esc(s)}" ${i === vista.secoes.length - 1 ? 'disabled' : ''}>↓</button></span></div>`).join('')}</div>
-    ${temExemplos ? `<div class="ajuste"><span class="rot">Dados de exemplo</span><span class="dica">Mercado, pendências e histórico de exemplo vieram para o painel não nascer vazio. Hábitos e pessoas ficam.</span><button type="button" class="botao perigo" data-exemplos>Remover dados de exemplo</button></div>` : ''}
+    <div class="ajuste"><span class="rot">Dados de exemplo</span><span class="dica">Para ver como o painel fica com o tempo: 90 dias de hábitos, humor e destaques, mais rotinas, mercado e pendências. Tudo marcado como exemplo; o que é de vocês não é tocado.</span><div class="opcoes"><button type="button" data-exemplos-gerar>Gerar 90 dias de exemplo</button>${temExemplos ? '<button type="button" data-exemplos>Remover exemplos</button>' : ''}</div></div>
     <div class="ajuste"><span class="rot">Voz (Siri)</span><span class="dica">O atalho “Anotar no painel” manda o que você ditar para este endereço, com o seu link de pareamento. Passo a passo no README do projeto.</span>
       <code style="font-size:.85rem;word-break:break-all">POST ${esc(location.origin)}/api/capture</code></div>`;
     $$('[data-mod]', el).forEach((x) => RENDER[x.dataset.mod]?.(x));
@@ -833,7 +894,8 @@ function ajustes() {
         desenhar(c);
         return;
       }
-      if (e.target.closest('[data-exemplos]')) { agir('exemplos.remover'); desenhar(c); }
+      if (e.target.closest('[data-exemplos]')) { agir('exemplos.remover'); desenhar(c); return; }
+      if (e.target.closest('[data-exemplos-gerar]')) { agir('exemplos.gerar'); desenhar(c); }
     });
     c.addEventListener('submit', (e) => {
       const f = e.target.closest('[data-membro]');
@@ -855,20 +917,36 @@ function aplicarTema() {
 }
 
 // ---------------------------------------------------------------- descanso
-// A página não controla o brilho do iPad; o que ela faz é escurecer tudo por cima (no mini-LED,
-// preto de verdade acende menos a tela) e deixar só o relógio, andando devagar para não marcar.
-let ultimoToque = Date.now(), descansando = false;
+// Depois de um tempo sem toque, o painel vira um quadro: as fotos do Pinterest em tela cheia,
+// trocando devagar, com a hora por cima. À noite (22h–6h) o quadro fica bem mais escuro.
+// A página não controla o brilho nem o bloqueio do iPad (isso é do iPadOS).
+let ultimoToque = Date.now(), descansando = false, quadroI = 0, quadroTimer = null;
 function noite() { const h = horaDaCasa(); return h >= 22 || h < 6; }
 function descansar() {
   if (descansando || !$('.painel')) return;
   descansando = true;
   const d = document.createElement('div');
-  d.className = 'descanso' + (noite() ? ' noite' : '');
+  d.className = 'descanso' + (noite() ? ' noite' : '') + (fotos.length ? ' com-fotos' : '');
   d.setAttribute('aria-label', 'Tela em descanso. Toque para acordar.');
-  d.innerHTML = '<div class="dorme"><div class="hora num"></div><div class="sub"></div></div>';
+  d.innerHTML = `<div class="quadro"><img alt="" decoding="async"><img alt="" decoding="async"></div>
+    <div class="dorme"><div class="hora num"></div><div class="sub"></div></div>`;
   document.body.append(d);
   document.body.classList.add('dormindo'); // para tudo que anima por baixo
+  quadroI = fotoI;
+  trocarQuadro();
+  clearInterval(quadroTimer);
+  quadroTimer = setInterval(trocarQuadro, 20000);
   atualizarDescanso();
+}
+function trocarQuadro() {
+  const d = $('.descanso');
+  if (!d || !fotos.length) return;
+  const [a, b] = $$('.quadro img', d);
+  const atual = a.classList.contains('on') ? a : b;
+  const prox = atual === a ? b : a;
+  const f = fotos[quadroI++ % fotos.length];
+  prox.onload = () => { atual.classList.remove('on'); prox.classList.remove('on'); void prox.offsetWidth; prox.classList.add('on'); };
+  prox.src = f.url;
 }
 function atualizarDescanso() {
   const d = $('.descanso');
@@ -876,15 +954,19 @@ function atualizarDescanso() {
   const tz = vista?.casa?.tz || 'America/Sao_Paulo';
   $('.hora', d).textContent = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(new Date());
   const abertas = vista ? pendOrdenadas().filter((p) => p.prazo && diferencaDias(hoje(), p.prazo) <= 0).length : 0;
-  $('.sub', d).textContent = abertas ? `${abertas} pendência${abertas > 1 ? 's' : ''} para hoje` : lua().ic + ' ' + lua().nome;
+  const data = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz }).format(new Date());
+  $('.sub', d).textContent = [data.charAt(0).toUpperCase() + data.slice(1), abertas ? `${abertas} pendência${abertas > 1 ? 's' : ''} para hoje` : `${lua().ic} ${lua().nome}`].join(' · ');
   d.classList.toggle('noite', noite());
-  const dorme = $('.dorme', d);
-  dorme.style.transform = `translate(${Math.round((Math.random() - .5) * 30)}vw, ${Math.round((Math.random() - .5) * 30)}vh)`;
+  if (!fotos.length) {
+    // sem fotos: só o relógio, andando devagar para não marcar a tela
+    $('.dorme', d).style.transform = `translate(${Math.round((Math.random() - .5) * 30)}vw, ${Math.round((Math.random() - .5) * 30)}vh)`;
+  }
 }
 function acordar() {
   ultimoToque = Date.now();
   if (!descansando) return false;
   descansando = false;
+  clearInterval(quadroTimer);
   $('.descanso')?.remove();
   document.body.classList.remove('dormindo');
   render();
@@ -896,11 +978,12 @@ document.addEventListener('pointerdown', (e) => {
   else ultimoToque = Date.now();
 }, { capture: true });
 document.addEventListener('click', (e) => { if (e.target.closest?.('.descanso')) { e.preventDefault(); e.stopPropagation(); } }, { capture: true });
+let ultimaHoraDescanso = 0;
 setInterval(() => {
-  const min = Number(prefs.descanso);
-  if (!descansando && min > 0 && !$('.veu') && Date.now() - ultimoToque > min * 60000) descansar();
-  if (descansando) atualizarDescanso();
-}, 20000);
+  const seg = Number(prefs.descanso) * 60;
+  if (!descansando && seg > 0 && !$('.veu') && Date.now() - ultimoToque > seg * 1000) descansar();
+  if (descansando && Date.now() - ultimaHoraDescanso > 20000) { ultimaHoraDescanso = Date.now(); atualizarDescanso(); }
+}, 3000);
 let lock = null, telaMsg = '';
 async function segurarTela() {
   if (!('wakeLock' in navigator)) { telaMsg = window.isSecureContext ? 'Tela sempre acesa: este navegador não suporta' : 'Tela sempre acesa: precisa de HTTPS (use o plano B do README)'; }
@@ -954,7 +1037,7 @@ function mostrarParear() {
 // ---------------------------------------------------------------- eventos
 document.addEventListener('click', (e) => {
   const t = e.target;
-  if (t.closest('.veu') && !t.closest('[data-hab-marcar],[data-item],[data-item-edit],[data-chip],[data-pend-ok],[data-pend-edit],[data-a]')) return;
+  if (t.closest('.veu') && !t.closest('[data-hab-marcar],[data-hab-det],[data-item],[data-item-edit],[data-chip],[data-pend-ok],[data-pend-edit],[data-a]')) return;
   let x;
   if ((x = t.closest('[data-hab-marcar]'))) return marcarHab(x.dataset.habMarcar);
   if ((x = t.closest('[data-hab-det]'))) return detalheHab(x.dataset.habDet);
@@ -971,12 +1054,14 @@ document.addEventListener('click', (e) => {
   if ((x = t.closest('[data-chip]'))) return agir('mercado.adicionar', { texto: x.dataset.chip });
   if ((x = t.closest('[data-pend-ok]'))) return agir('pendencia.concluir', { id: x.dataset.pendOk });
   if ((x = t.closest('[data-pend-edit]'))) return editarPend(x.dataset.pendEdit);
-  if ((x = t.closest('[data-reg]'))) return editarReg(x.dataset.reg);
+  if ((x = t.closest('[data-pessoa-menu]'))) return pessoaMenu(x.dataset.pessoaMenu);
+  if ((x = t.closest('[data-reg]'))) return pessoaMenu(x.dataset.reg);
   if ((x = t.closest('[data-aba]'))) { aba = x.dataset.aba; LS.set('painel-aba', aba); diaReg = null; montarAba(); window.scrollTo(0, 0); return; }
   if ((x = t.closest('[data-dia-nav]'))) { diaReg = somarDias(diaReg || hoje(), Number(x.dataset.diaNav)); if (diaReg > hoje()) diaReg = hoje(); montarAba(); return; }
   const a = t.closest('[data-a]')?.dataset.a;
   if (a === 'tema') { prefs.tema = prefs.tema === 'light' ? 'dark' : 'light'; salvarPrefs(); aplicarTema(); return; }
   if (a === 'ajustes') return ajustes();
+  if (a === 'tela-cheia') return telaCheia();
   if (a === 'limpar') return agir('mercado.limpar');
   if (a === 'foto') { proximaFoto(); reiniciarFotos(); return; }
   if (a === 'ver-carrinho') return sheet('<section class="card" data-mod="mercado" data-carrinho="1" data-agrupar="1" style="border:0;padding:0;overflow:visible;background:none;box-shadow:none"></section><p class="dica">Tocou por engano? Toque no item para ele voltar para a lista.</p>', (s) => renderMercado($('[data-mod]', s)));

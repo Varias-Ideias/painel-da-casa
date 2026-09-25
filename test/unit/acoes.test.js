@@ -177,6 +177,31 @@ test('hábitos: criar, validar e arquivar', () => {
   assert.equal(estado.habitos.at(-1).arquivado, true);
 });
 
+test('exemplos ricos: iguais no aparelho e no servidor, 90 dias, sem tocar no que é real', () => {
+  const a = novo(); const b = novo();
+  a.fazer('mercado.adicionar', { texto: 'tapioca' });           // dado real
+  a.fazer('habito.marcar', { habito: 'meditar' });               // dado real de hoje
+  b.fazer('mercado.adicionar', { texto: 'tapioca' });
+  b.fazer('habito.marcar', { habito: 'meditar' });
+  a.fazer('exemplos.gerar');
+  b.fazer('exemplos.gerar');
+  assert.equal(JSON.stringify(a.estado.eventos), JSON.stringify(b.estado.eventos), 'determinístico');
+  assert.ok(a.estado.habitos.filter((h) => h.exemplo).length >= 8);
+  assert.ok(a.estado.eventos.length > 500);
+  assert.ok(Object.keys(a.estado.registro.k).length > 50);
+  assert.equal(a.estado.eventos.filter((e) => e.habito === 'meditar' && e.data === HOJE).length, 1, 'não duplica o que já foi marcado hoje');
+  // gerar de novo não acumula
+  const n = a.estado.eventos.length;
+  a.fazer('exemplos.gerar');
+  assert.equal(a.estado.eventos.length, n);
+  // remover deixa só o real
+  a.fazer('exemplos.remover');
+  assert.equal(a.estado.habitos.filter((h) => h.exemplo).length, 0);
+  assert.deepEqual(a.estado.eventos.map((e) => e.habito), ['meditar']);
+  assert.deepEqual(a.estado.mercado.map((i) => i.nome), ['Tapioca']);
+  assert.equal(Object.values(a.estado.registro.k).filter((r) => r.exemplo).length, 0);
+});
+
 test('ação desconhecida é recusada', () => {
   const { fazer } = novo();
   assert.throws(() => fazer('apagar.tudo', {}), /desconhecida/);
