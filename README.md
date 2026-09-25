@@ -15,8 +15,9 @@ O Anakin e a Chihiro aparecem como assunto de pendências e de hábitos.
 O app funciona **na rede de casa**, com o computador como servidor. Ainda não existe nada na nuvem
 (ver `DECISIONS.md`, D12). O que já roda:
 
-- **Painel** com 3 layouts à escolha (Ajustes ⚙ → Layout do painel): A · Colunas, B · Pessoas, C · Agora.
-  Funciona em paisagem e em retrato.
+- **Painel "Agora"** (visual floresta à noite): relógio, fase da lua, pendências, hábitos em anéis
+  (cachorros → Karen → Matheus), mercado e fotos do Pinterest. Funciona em paisagem e em retrato.
+- **Descanso da tela:** depois de 3 min sem toque (ajustável), escurece e mostra só o relógio.
 - **Celular** com as abas Hoje, Mercado, Pendências e Registro.
 - **Tempo real:** o que um aparelho anota aparece nos outros. No teste local levou 33 ms; no Wi-Fi
   ainda não foi medido.
@@ -51,6 +52,22 @@ A pasta `dados/` fica **fora do git** de propósito: tem dado real e segredo.
 (hoje `OneDrive\Documentos\painel-da-casa-backup`). O servidor copia para lá o backup de cada dia.
 Esse backup é o estado completo da casa, **inclusive diário e gratidão**; os links secretos não vão
 (só o hash). Para tirar essa cópia, apague a linha.
+
+**Backup cifrado no GitHub:** todo dia o servidor cifra o backup (AES-256-GCM) e envia para um
+repositório privado. Configurar uma vez, na pasta do projeto:
+
+```bash
+cd dados
+gh repo create Varias-Ideias/painel-da-casa-backup --private --clone
+ren painel-da-casa-backup backup-git
+cd ..
+npm run senha-backup
+```
+
+O último comando mostra a senha **uma vez**: guarde num gerenciador de senhas. Depois, em
+`dados/config.json`, acrescente `"backup_git": "C:\\Users\\User\\varias-ideias\\painel-da-casa\\dados\\backup-git"`
+e reinicie o servidor. Para abrir um backup em qualquer máquina:
+`BACKUP_SENHA=… npm run restaurar -- casa-2026-09-25.json.enc`.
 
 ### Em outro computador
 

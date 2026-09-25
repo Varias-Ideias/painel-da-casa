@@ -35,16 +35,19 @@ let servidor = LS.get(K('painel-estado'), null);
 let fila = LS.get(K('painel-fila'), []);
 let vista = null;
 let conexao = 'off';
-const prefs = Object.assign({ layout: 'B', tema: 'auto', modo: 'auto' }, LS.get('painel-prefs', {}));
-if (params.get('layout')) prefs.layout = params.get('layout').toUpperCase();
+const prefs = Object.assign({ tema: 'dark', modo: 'auto', descanso: 3 }, LS.get('painel-prefs', {}));
+if (prefs.tema !== 'light') prefs.tema = 'dark'; // "auto" das versões antigas vira o escuro, o padrão
 let aba = LS.get('painel-aba', 'hoje');
 let diaReg = null;
 let modoAtual = null;
 
 const hoje = () => hojeNoFuso(vista?.casa?.tz || 'America/Sao_Paulo');
 const membro = (id) => vista.membros.find((m) => m.id === id);
-const pessoas = () => vista.membros.filter((m) => m.tipo === 'pessoa');
-const pets = () => vista.membros.filter((m) => m.tipo === 'pet');
+// Ordem da casa em todo lugar: cachorros primeiro, depois as pessoas; cada grupo em ordem alfabética.
+const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR');
+const pessoas = () => vista.membros.filter((m) => m.tipo === 'pessoa').sort(porNome);
+const pets = () => vista.membros.filter((m) => m.tipo === 'pet').sort(porNome);
+const membrosEmOrdem = () => [...pets(), ...pessoas()];
 const habitosDe = (ids) => vista.habitos.filter((h) => !h.arquivado && ids.includes(h.membro)).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
 const salvarPrefs = () => LS.set('painel-prefs', prefs);
 
@@ -238,7 +241,7 @@ function habRow(h) {
   } else if (s.tipo === 'qtd') {
     alvo = s.feito ? '✓' : `+${h.unidade === 'ml' && h.passo >= 1000 ? h.passo / 1000 + 'L' : fmtN(h.passo || 1)}`;
     const pct = Math.min(100, (s.valor / s.meta) * 100);
-    sub = `<small class="num">${fmtN(s.valor)} / ${fmtN(s.meta)} ${esc(h.unidade || '')}</small><div class="barra"><i style="width:${pct}%"></i></div>`;
+    sub = `<small class="num">${fmtN(s.valor)} / ${fmtN(s.meta)} ${esc(h.unidade || '')}</small><div class="barra-prog"><i style="width:${pct}%"></i></div>`;
     seq = `${s.seq}<small>dias</small>`;
   } else if (s.tipo === 'semana') {
     alvo = s.feitoHoje ? '✓' : esc(h.emoji || '•');
@@ -257,9 +260,51 @@ function habRow(h) {
     <button type="button" class="nome" data-hab-det="${esc(h.id)}">${s.tipo === 'evitar' ? esc(h.emoji || '') + ' ' : ''}${esc(h.nome)}${sub}</button>
     <div class="seq num">${seq}</div></div>`;
 }
+/** Anel SVG: progresso de 0 a 1, ou `gomos` iguais (semana: 3 vezes = 3 gomos). */
+function anel(p, gomos = 0, feitos = 0) {
+  const r = 28, C = 2 * Math.PI * r;
+  const base = `<circle class="fundo" cx="32" cy="32" r="${r}"/>`;
+  if (gomos) {
+    const seg = C / gomos, vao = gomos > 1 ? 6 : 0;
+    const arcos = Array.from({ length: gomos }, (_, i) => `<circle class="${i < feitos ? 'prog' : 'fundo'}" cx="32" cy="32" r="${r}" stroke-dasharray="${seg - vao} ${C}" stroke-dashoffset="${-i * seg}"/>`).join('');
+    return `<svg viewBox="0 0 64 64" aria-hidden="true">${arcos}</svg>`;
+  }
+  const v = Math.max(0, Math.min(1, p));
+  return `<svg viewBox="0 0 64 64" aria-hidden="true">${base}${v > 0 ? `<circle class="prog" cx="32" cy="32" r="${r}" stroke-dasharray="${v * C} ${C}"/>` : ''}</svg>`;
+}
+const brilho = {};
+/** Hábito em mosaico (painel): o anel conta a história do tipo. Toque no mosaico marca; no nome, abre o detalhe. */
+function habTile(h) {
+  const s = estadoDe(h);
+  let svg, dentro = `<span class="emoji">${esc(h.emoji || '•')}</span>`, sub;
+  if (s.tipo === 'qtd') {
+    svg = anel(s.valor / s.meta);
+    sub = `${fmtN(h.unidade === 'ml' && s.meta >= 1000 ? s.valor / 1000 : s.valor)}/${fmtN(h.unidade === 'ml' && s.meta >= 1000 ? s.meta / 1000 : s.meta)} ${h.unidade === 'ml' && s.meta >= 1000 ? 'L' : esc(h.unidade || '')}`;
+  } else if (s.tipo === 'semana') {
+    svg = anel(0, s.meta, s.feitosSemana);
+    sub = `${s.feitosSemana} de ${s.meta} · ${s.seq} sem.`;
+  } else if (s.tipo === 'evitar') {
+    svg = anel(Math.min(1, s.diasSem / Math.max(7, s.recorde || 7)));
+    dentro = `<span class="dentro num">${s.diasSem}</span>`;
+    sub = s.diasSem === 1 ? '1 dia sem' : `${s.diasSem} dias sem`;
+  } else {
+    svg = anel(s.feito ? 1 : 0);
+    sub = s.seq ? `${s.seq} ${s.seq === 1 ? 'dia' : 'dias'}` : 'hoje';
+  }
+  const brilhou = s.feito && Date.now() - (brilho[h.id] || 0) < 1500;
+  const rot = s.tipo === 'evitar' ? `Registrar deslize em ${h.nome}` : s.tipo === 'qtd' ? `Somar ${h.passo} ${h.unidade || ''} em ${h.nome}` : `Marcar ${h.nome}`;
+  return `<div class="tile ${s.tipo} ${s.feito ? 'feito' : ''} ${brilhou ? 'brilha' : ''}">
+    <button type="button" data-hab-marcar="${esc(h.id)}" aria-label="${esc(rot)}" style="display:contents">
+      <span class="anel">${svg}${dentro}</span></button>
+    ${s.feito ? '<span class="ok" aria-hidden="true">✓</span>' : ''}
+    <button type="button" data-hab-det="${esc(h.id)}" style="display:contents"><span class="t">${esc(h.nome)}</span><span class="s num">${sub}</span></button>
+  </div>`;
+}
+
 function marcarHab(id) {
   const h = vista.habitos.find((x) => x.id === id);
   if (!h) return;
+  brilho[id] = Date.now();
   const s = estadoDe(h);
   if (h.tipo === 'qtd') {
     if (s.feito) return toast(`${h.nome}: meta de hoje batida. Para corrigir, toque no nome.`);
@@ -357,48 +402,49 @@ function editarHab(id) {
 // ---------------------------------------------------------------- mercado
 function itensOrdenados() {
   const ord = (i) => { const k = vista.secoes.indexOf(i.secao); return k < 0 ? 99 : k; };
-  return [...vista.mercado].sort((a, b) => (Boolean(a.comprado_em) - Boolean(b.comprado_em)) || (ord(a) - ord(b)) || a.nome.localeCompare(b.nome, 'pt-BR'));
+  return [...vista.mercado].sort((a, b) => (ord(a) - ord(b)) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
+/** Item com bolinha: tocar marca, risca e o item sai da lista (vai para o carrinho, com desfazer). */
 function itemRow(i, editar) {
-  const btn = `<button type="button" class="item ${i.comprado_em ? 'ok' : ''}" data-item="${esc(i.id)}" aria-label="${i.comprado_em ? 'Desmarcar' : 'Marcar como comprado'}: ${esc(i.nome)}"><span class="n">${esc(i.nome)}</span><span class="qtd">${esc(i.qtd)}</span></button>`;
+  const btn = `<button type="button" class="item ${i.comprado_em ? 'no-carrinho' : ''}" data-item="${esc(i.id)}" aria-label="${i.comprado_em ? 'Tirar do carrinho' : 'Marcar como comprado'}: ${esc(i.nome)}">
+    <span class="bola" aria-hidden="true">${i.comprado_em ? '✓' : ''}</span><span class="n">${esc(i.nome)}</span><span class="qtd">${esc(i.qtd)}</span></button>`;
   if (!editar) return btn;
-  return `<div style="display:grid;grid-template-columns:1fr auto;align-items:center">${btn}<button type="button" class="mexer" data-item-edit="${esc(i.id)}" aria-label="Editar ${esc(i.nome)}">⋯</button></div>`;
+  return `<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px">${btn}<button type="button" class="mexer" data-item-edit="${esc(i.id)}" aria-label="Editar ${esc(i.nome)}">⋯</button></div>`;
 }
 function renderMercado(el) {
-  const lim = Number(el.dataset.limite) || 999;
   const agrupar = el.dataset.agrupar === '1';
   const editar = el.dataset.editar === '1';
+  const soCarrinho = el.dataset.carrinho === '1';
   if (!el.dataset.pronto) {
-    el.innerHTML = `<header><h2>Mercado</h2><span class="muted num cont"></span></header>
-      ${el.dataset.semcampo ? '' : `<form class="anotar" data-form="mercado"><input name="texto" list="catalogo-lista" autocomplete="off" enterkeyhint="done" placeholder="leite, pão e 2 dúzias de ovos" aria-label="Adicionar itens ao mercado"><button type="submit">Adicionar</button></form>`}
-      <div class="chips"></div><div class="lista"></div><button type="button" class="mais limpar" data-a="limpar" hidden></button>`;
+    el.innerHTML = `<header><h2>${soCarrinho ? 'No carrinho' : 'Mercado'}</h2><span class="muted num cont"></span></header>
+      ${el.dataset.semcampo || soCarrinho ? '' : `<form class="anotar" data-form="mercado"><input name="texto" list="catalogo-lista" autocomplete="off" enterkeyhint="done" placeholder="leite, pão e 2 dúzias de ovos" aria-label="Adicionar itens ao mercado"><button type="submit">Adicionar</button></form>`}
+      <div class="chips"></div><div class="lista"></div><div class="carrinho"></div>`;
     el.dataset.pronto = '1';
   }
-  const itens = itensOrdenados();
-  const falta = itens.filter((i) => !i.comprado_em).length;
-  const comprados = itens.length - falta;
-  $('.cont', el).textContent = falta ? `${falta} para comprar` : 'lista vazia';
+  const todos = itensOrdenados();
+  const faltam = todos.filter((i) => !i.comprado_em);
+  const noCarrinho = todos.filter((i) => i.comprado_em);
+  const itens = soCarrinho ? noCarrinho : faltam;
+  $('.cont', el).textContent = soCarrinho ? '' : faltam.length ? `${faltam.length} para comprar` : 'lista vazia';
   let corpo = '';
   if (agrupar) {
     let ultima = '';
     for (const i of itens) {
-      const sec = i.comprado_em ? 'Comprados' : i.secao;
-      if (sec !== ultima) { corpo += `<div class="sec">${esc(sec)}</div>`; ultima = sec; }
+      if (i.secao !== ultima) { corpo += `<div class="sec">${esc(i.secao)}</div>`; ultima = i.secao; }
       corpo += itemRow(i, editar);
     }
   } else {
-    corpo = itens.slice(0, lim).map((i) => itemRow(i, editar)).join('');
-    if (itens.length > lim) corpo += `<button type="button" class="mais" data-a="mais-merc">+${itens.length - lim} itens</button>`;
+    corpo = itens.map((i) => itemRow(i, editar)).join('');
   }
-  if (!itens.length) corpo = '<p class="vazio">Nada na lista. Anote aqui em cima ou pela voz.</p>';
+  if (!itens.length) corpo = soCarrinho ? '<p class="vazio">Nada no carrinho.</p>' : '<p class="vazio">Nada na lista. Anote aqui em cima, pela barra “Anotar” ou pela voz.</p>';
   $('.lista', el).innerHTML = corpo;
   if (!agrupar) caber($('.lista', el), itens.length, 'itens', 'mais-merc');
-  const naLista = new Set(vista.mercado.filter((i) => !i.comprado_em).map((i) => i.nome_norm));
-  const freq = Object.entries(vista.catalogo || {}).filter(([n]) => !naLista.has(n)).sort((a, b) => (b[1].vezes || 0) - (a[1].vezes || 0)).slice(0, Number(el.dataset.chips ?? 4));
+  const naLista = new Set(faltam.map((i) => i.nome_norm));
+  const freq = soCarrinho ? [] : Object.entries(vista.catalogo || {}).filter(([n]) => !naLista.has(n)).sort((a, b) => (b[1].vezes || 0) - (a[1].vezes || 0)).slice(0, Number(el.dataset.chips ?? 4));
   $('.chips', el).innerHTML = freq.map(([, c]) => `<button type="button" class="chip" data-chip="${esc(c.nome)}">+ ${esc(c.nome)}</button>`).join('');
-  const limpar = $('.limpar', el);
-  limpar.hidden = !comprados;
-  limpar.textContent = `Limpar ${comprados} comprado${comprados > 1 ? 's' : ''}`;
+  $('.carrinho', el).innerHTML = noCarrinho.length
+    ? `<span>🧺 ${noCarrinho.length} no carrinho</span><span class="acoes">${soCarrinho ? '' : '<button type="button" data-a="ver-carrinho">Ver</button>'}<button type="button" data-a="limpar">Limpar</button></span>`
+    : (soCarrinho ? '' : '<span class="dica">Toque num item quando pegar: ele sai da lista e vai para o carrinho.</span>');
 }
 function editarItem(id) {
   const i = vista.mercado.find((x) => x.id === id);
@@ -541,12 +587,29 @@ function editarReg(id, dia = hoje()) {
 }
 
 // ---------------------------------------------------------------- módulos pequenos
+/** Fase da lua, calculada aqui mesmo (sem internet): idade desde uma lua nova conhecida. */
+function lua(agora = new Date()) {
+  const SINODICO = 29.530588853;
+  const ref = Date.UTC(2000, 0, 6, 18, 14);
+  const idade = (((agora - ref) / 86400000) % SINODICO + SINODICO) % SINODICO;
+  const fases = [[1.85, '🌑', 'Lua nova'], [5.54, '🌒', 'Lua crescente'], [9.23, '🌓', 'Quarto crescente'], [12.92, '🌔', 'Crescente gibosa'],
+    [16.61, '🌕', 'Lua cheia'], [20.30, '🌖', 'Minguante gibosa'], [23.99, '🌗', 'Quarto minguante'], [27.68, '🌘', 'Lua minguante'], [99, '🌑', 'Lua nova']];
+  const [, ic, nome] = fases.find(([lim]) => idade < lim);
+  return { ic, nome };
+}
+function horaDaCasa(agora = new Date()) {
+  return Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: vista?.casa?.tz || 'America/Sao_Paulo' }).format(agora));
+}
 function renderRelogio(el) {
   const agora = new Date();
   const tz = vista?.casa?.tz || 'America/Sao_Paulo';
   const hora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(agora);
   const data = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz }).format(agora);
-  el.innerHTML = `<span class="hora num">${hora}</span><span class="data">${data.charAt(0).toUpperCase() + data.slice(1)}</span>`;
+  const h = horaDaCasa(agora);
+  const saud = h >= 5 && h < 12 ? 'Bom dia' : h >= 12 && h < 18 ? 'Boa tarde' : 'Boa noite';
+  const l = lua(agora);
+  el.innerHTML = `<span class="saudacao">${saud}, casa</span><span class="hora num">${hora}</span>
+    <span class="data">${data.charAt(0).toUpperCase() + data.slice(1)}</span><span class="lua">${l.ic} ${l.nome}</span>`;
 }
 function renderQuem(el) {
   const p = membro(el.dataset.pessoa);
@@ -554,17 +617,19 @@ function renderQuem(el) {
   const hs = habitosDe([p.id]);
   const n = hs.filter((h) => estadoDe(h).feito).length;
   const conta = hs.filter((h) => h.tipo !== 'evitar').length;
-  el.innerHTML = `<div class="av" style="color:${esc(p.cor)}">${esc(p.emoji)}</div><strong>${esc(p.nome)}</strong>${conta ? `<span class="muted num" style="margin-left:auto">${n} de ${conta} hoje</span>` : ''}`;
+  el.style.setProperty('--cor', p.cor);
+  el.innerHTML = `<div class="av">${esc(p.emoji)}</div><strong>${esc(p.nome)}</strong>${conta ? `<span class="muted num" style="margin-left:auto">${n} de ${conta} hoje</span>` : ''}`;
 }
 function renderHabitos(el) {
   const d = el.dataset.dono;
-  const donos = d === 'pets' ? pets().map((p) => p.id) : d === 'todos' ? vista.membros.map((m) => m.id) : [d === 'eu' ? eu : d];
+  const donos = d === 'pets' ? pets().map((p) => p.id) : d === 'todos' ? membrosEmOrdem().map((m) => m.id) : [d === 'eu' ? eu : d];
+  const mosaico = el.classList.contains('fila');
   let html = '';
   for (const id of donos) {
     const hs = habitosDe([id]);
     if (!hs.length) continue;
     if (donos.length > 1 && el.dataset.rotulos !== '0') html += `<div class="sec">${esc(membro(id)?.emoji)} ${esc(membro(id)?.nome)}</div>`;
-    html += hs.map(habRow).join('');
+    html += hs.map(mosaico ? habTile : habRow).join('');
   }
   el.innerHTML = html || '<p class="vazio">Nenhum hábito. Crie nos ajustes (⚙).</p>';
 }
@@ -578,42 +643,76 @@ function renderCaptura(el) {
   el.innerHTML = `<form class="anotar captura" data-form="captura"><input name="texto" autocomplete="off" enterkeyhint="send" placeholder="Anotar: “leite e pão”, “treinei”, “pendência: IPTU até sexta”" aria-label="Anotar rápido"><button type="submit">Anotar</button></form>`;
   el.dataset.pronto = '1';
 }
-const RENDER = { relogio: renderRelogio, quem: renderQuem, habitos: renderHabitos, registro: renderRegistro, mercado: renderMercado, pendencias: renderPend, sync: renderSync, captura: renderCaptura, tela: renderTela };
 
-// ---------------------------------------------------------------- layouts
-const botoesTopo = () => `<div class="acoes"><button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${{ auto: '◐', light: '☀', dark: '☾' }[prefs.tema]}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
+// ---------------------------------------------------------------- fotos
+// Carrossel no estilo das memórias do iPhone: troca a cada 12 s com zoom lento; tocar passa para a próxima.
+let fotos = [], fotoI = 0, fotoTimer = null, fotosEm = 0;
+async function carregarFotos() {
+  if (!token) return;
+  try {
+    const r = await fetch('/api/fotos', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+    if (!r.ok) return;
+    const j = await r.json();
+    const lista = j.fotos.map((f) => ({ ...f, url: f.url.startsWith('/fotos-locais/') ? `${f.url}?t=${encodeURIComponent(token)}` : f.url }));
+    // embaralha uma vez por carga, para não começar sempre pela mesma
+    for (let i = lista.length - 1; i > 0; i--) { const j2 = Math.floor(Math.random() * (i + 1)); [lista[i], lista[j2]] = [lista[j2], lista[i]]; }
+    fotos = lista;
+    fotosEm = Date.now();
+    fotoI = 0;
+    $$('[data-mod="fotos"]').forEach((el) => { delete el.dataset.pronto; renderFotos(el); });
+  } catch { /* sem rede: fica com as que já tinha */ }
+}
+function renderFotos(el) {
+  if (el.dataset.pronto) return;
+  el.dataset.pronto = '1';
+  if (!fotos.length) {
+    el.innerHTML = `<div class="fotos"><div class="vazio-fotos">As fotos da pasta do Pinterest aparecem aqui.<br><span class="dica">Configure em dados/config.json → fotos_pinterest</span></div></div>`;
+    return;
+  }
+  el.innerHTML = `<div class="fotos" role="img" aria-label="Fotos da casa"><img alt="" decoding="async"><img alt="" decoding="async"><div class="legenda"><span class="txt"></span><span class="pts"></span></div></div>`;
+  mostrarFoto(el, true);
+}
+function mostrarFoto(el, primeira = false) {
+  const box = $('.fotos', el);
+  if (!box || !fotos.length) return;
+  const [a, b] = $$('img', box);
+  const atual = a.classList.contains('on') ? a : b;
+  const prox = atual === a ? b : a;
+  const f = fotos[fotoI % fotos.length];
+  prox.onload = () => { atual.classList.remove('on'); prox.classList.remove('on'); void prox.offsetWidth; prox.classList.add('on'); };
+  prox.onerror = () => { fotos.splice(fotoI % fotos.length, 1); if (fotos.length) mostrarFoto(el); };
+  prox.src = f.url;
+  $('.legenda .txt', box).textContent = f.titulo || '';
+  const n = Math.min(fotos.length, 8), k = fotoI % fotos.length;
+  $('.legenda .pts', box).innerHTML = Array.from({ length: n }, (_, i) => `<i class="${i === Math.floor((k / fotos.length) * n) ? 'on' : ''}"></i>`).join('');
+  // pré-carrega a seguinte
+  const seg = fotos[(fotoI + 1) % fotos.length];
+  if (seg) { const pre = new Image(); pre.src = seg.url; }
+  if (!primeira) return;
+}
+function proximaFoto() {
+  if (!fotos.length) return;
+  fotoI = (fotoI + 1) % fotos.length;
+  $$('[data-mod="fotos"]').forEach((el) => mostrarFoto(el));
+}
+const RENDER = { relogio: renderRelogio, quem: renderQuem, habitos: renderHabitos, registro: renderRegistro, mercado: renderMercado, pendencias: renderPend, sync: renderSync, captura: renderCaptura, tela: renderTela, fotos: renderFotos };
 
-function layoutPainel(L) {
-  const ps = pessoas();
-  if (L === 'A') {
-    return `<main class="painel A"><div class="topo">
-      <div class="relogio" data-mod="relogio"></div>
-      ${ps.slice(0, 2).map((p) => `<section class="card"><div class="quem" data-mod="quem" data-pessoa="${esc(p.id)}"></div><div data-mod="registro" data-pessoa="${esc(p.id)}"></div></section>`).join('')}
-      <div class="lado"><div class="linha"><span data-mod="sync"></span>${botoesTopo()}</div><div data-mod="captura"></div><span class="selo" data-mod="tela"></span></div></div>
-      <section class="card" id="hab"><header><h2>Hábitos de hoje</h2></header><div class="corpo" data-mod="habitos" data-dono="todos"></div></section>
-      <section class="card" id="merc" data-mod="mercado" data-chips="3"></section>
-      <section class="card" id="pend" data-mod="pendencias"></section></main>`;
-  }
-  if (L === 'C') {
-    return `<main class="painel C">
-      <section class="card" id="agora"><div class="linha"><div class="relogio" data-mod="relogio"></div>${botoesTopo()}</div>
-        <div data-mod="captura"></div><div data-mod="pendencias"></div>
-        <div class="linha"><span data-mod="sync"></span><span class="selo" data-mod="tela"></span></div></section>
-      <section class="card" id="hab"><header><h2>Hoje</h2></header>
-        ${ps.map((p) => `<div class="pess"><div><div class="quem" data-mod="quem" data-pessoa="${esc(p.id)}"></div><div class="mini" data-mod="registro" data-pessoa="${esc(p.id)}"></div></div><div class="fila" data-mod="habitos" data-dono="${esc(p.id)}"></div></div>`).join('')}
-        ${pets().length ? `<div class="pess"><div><div class="quem"><div class="av" style="color:var(--pet)">🐾</div><strong>${esc(pets().map((p) => p.nome).join(' e '))}</strong></div></div><div class="fila" data-mod="habitos" data-dono="pets" data-rotulos="0"></div></div>` : ''}
-      </section>
-      <section class="card" id="merc" data-mod="mercado" data-chips="4"></section></main>`;
-  }
-  // B (padrão)
-  return `<main class="painel B">
-    ${ps.slice(0, 2).map((p, i) => `<section class="card pessoa" id="p${i ? 'k' : 'm'}" style="--cor:${esc(p.cor)}"><div class="quem" data-mod="quem" data-pessoa="${esc(p.id)}"></div>
-      <div class="lista corpo" data-mod="habitos" data-dono="${esc(p.id)}"></div><div class="div" data-mod="registro" data-pessoa="${esc(p.id)}"></div></section>`).join('')}
-    <section class="card pessoa" id="casa"><div class="linha relogio-bloco"><div class="relogio" data-mod="relogio"></div>${botoesTopo()}</div>
-      <div class="lista corpo" data-mod="habitos" data-dono="pets"></div><div data-mod="captura" style="margin-top:auto"></div>
+// ---------------------------------------------------------------- layout do painel ("Agora", o C)
+const botoesTopo = () => `<div class="acoes"><button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${prefs.tema === 'light' ? '☀' : '☾'}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
+
+function layoutPainel() {
+  const grupo = (lado, dono) => `<div class="grupo"><div class="lado">${lado}</div><div class="fila" data-mod="habitos" data-dono="${esc(dono)}" data-rotulos="0"></div></div>`;
+  const cachorros = pets().length ? grupo(`<div class="quem" style="--cor:var(--pet)"><div class="av">🐶</div><strong>${esc(pets().map((p) => p.nome).join(' e '))}</strong></div>`, 'pets') : '';
+  return `<main class="painel C">
+    <section class="card" id="agora"><div class="linha"><div class="relogio" data-mod="relogio"></div>${botoesTopo()}</div>
+      <div data-mod="captura"></div><div data-mod="pendencias"></div>
       <div class="linha"><span data-mod="sync"></span><span class="selo" data-mod="tela"></span></div></section>
-    <section class="card" id="merc" data-mod="mercado" data-chips="4"></section>
-    <section class="card" id="pend" data-mod="pendencias"></section></main>`;
+    <section class="card" id="hab"><header><h2>Hoje</h2></header><div class="grupos">
+      ${cachorros}
+      ${pessoas().map((p) => grupo(`<div class="quem" data-mod="quem" data-pessoa="${esc(p.id)}"></div><div class="mini" data-mod="registro" data-pessoa="${esc(p.id)}"></div>`, p.id)).join('')}
+    </div></section>
+    <section class="card" id="merc" data-mod="mercado" data-chips="4" data-semcampo="1"></section>
+    <section class="card" id="fotos" data-mod="fotos" data-a="foto"></section></main>`;
 }
 
 const ABAS = [['hoje', '☀', 'Hoje'], ['mercado', '🛒', 'Mercado'], ['pendencias', '✓', 'Pendências'], ['registro', '✎', 'Registro']];
@@ -637,8 +736,8 @@ function montarAba() {
     return;
   } else {
     m.innerHTML = `<div data-mod="captura"></div>
-      ${minha ? `<section class="card"><div class="quem" data-mod="quem" data-pessoa="${esc(minha)}"></div><div class="lista" data-mod="habitos" data-dono="${esc(minha)}"></div></section>` : `<section class="card"><header><h2>Hábitos</h2></header><div class="lista" data-mod="habitos" data-dono="todos"></div></section>`}
-      ${minha && pets().length ? `<section class="card"><header><h2>Cachorros</h2></header><div class="lista" data-mod="habitos" data-dono="pets"></div></section>` : ''}
+      ${minha && pets().length ? `<section class="card"><header><h2>🐶 ${esc(pets().map((p) => p.nome).join(' e '))}</h2></header><div class="fila" data-mod="habitos" data-dono="pets" data-rotulos="0"></div></section>` : ''}
+      ${minha ? `<section class="card"><div class="quem" data-mod="quem" data-pessoa="${esc(minha)}"></div><div class="fila" data-mod="habitos" data-dono="${esc(minha)}"></div></section>` : `<section class="card"><header><h2>Hábitos</h2></header><div class="lista" data-mod="habitos" data-dono="todos"></div></section>`}
       <section class="card" data-mod="pendencias" data-ate="0"></section>
       <section class="card"><header><h2>A casa hoje</h2></header><div data-mod="registro"></div></section>`;
   }
@@ -683,8 +782,9 @@ function ajustes() {
     el.innerHTML = `<h2>Ajustes</h2>
     <div class="ajuste"><span class="rot">Este aparelho</span><p>${esc(sou)} · <span data-mod="sync"></span></p>
       <span class="rot">Tela</span><div class="opcoes" data-pref="modo">${[['auto', 'Automática'], ['painel', 'Painel'], ['celular', 'Celular']].map(([k, v]) => `<button type="button" data-v="${k}" class="${prefs.modo === k ? 'on' : ''}">${v}</button>`).join('')}</div>
-      <span class="rot">Layout do painel</span><div class="opcoes" data-pref="layout">${[['A', 'A · Colunas'], ['B', 'B · Pessoas'], ['C', 'C · Agora']].map(([k, v]) => `<button type="button" data-v="${k}" class="${prefs.layout === k ? 'on' : ''}">${v}</button>`).join('')}</div>
-      <span class="rot">Tema</span><div class="opcoes" data-pref="tema">${[['auto', 'Automático'], ['light', 'Claro'], ['dark', 'Escuro']].map(([k, v]) => `<button type="button" data-v="${k}" class="${prefs.tema === k ? 'on' : ''}">${v}</button>`).join('')}</div>
+      <span class="rot">Tema</span><div class="opcoes" data-pref="tema">${[['dark', '☾ Floresta à noite'], ['light', '☀ Jardim de manhã']].map(([k, v]) => `<button type="button" data-v="${k}" class="${prefs.tema === k ? 'on' : ''}">${v}</button>`).join('')}</div>
+      <span class="rot">Descansar a tela depois de</span><div class="opcoes" data-pref="descanso">${[[1, '1 min'], [3, '3 min'], [5, '5 min'], [10, '10 min'], [0, 'Nunca']].map(([k, v]) => `<button type="button" data-v="${k}" class="${Number(prefs.descanso) === k ? 'on' : ''}">${v}</button>`).join('')}</div>
+      <span class="dica">A tela escurece e mostra só o relógio; entre 22h e 6h fica mais escura. Um toque acorda. Para o iPad não bloquear sozinho: Ajustes do iPad → Tela e Brilho → Bloqueio Automático → Nunca, e deixe o <b>Modo Pouca Energia desligado</b> (com ele ligado o iPad força bloqueio em 30 s).</span>
       <span class="dica" data-mod="tela"></span></div>
     <div class="ajuste"><div class="linha"><span class="rot">Hábitos</span><button type="button" class="chip" data-novo-hab>+ Novo</button></div>
       ${vista.habitos.slice().sort((a, b) => (a.arquivado - b.arquivado) || (a.ordem ?? 0) - (b.ordem ?? 0)).map((h) => `<div class="linha-hab ${h.arquivado ? 'arq' : ''}"><span style="font-size:1.4rem">${esc(h.emoji || '•')}</span>
@@ -710,8 +810,9 @@ function ajustes() {
       const pref = e.target.closest('[data-pref] [data-v]');
       if (pref) {
         const k = pref.closest('[data-pref]').dataset.pref;
-        prefs[k] = pref.dataset.v;
+        prefs[k] = k === 'descanso' ? Number(pref.dataset.v) : pref.dataset.v;
         salvarPrefs();
+        acordar();
         aplicarTema();
         modoAtual = null;
         montar();
@@ -745,10 +846,56 @@ function ajustes() {
 
 // ---------------------------------------------------------------- tema e tela acesa
 function aplicarTema() {
-  if (prefs.tema === 'auto') document.documentElement.removeAttribute('data-theme');
-  else document.documentElement.setAttribute('data-theme', prefs.tema);
-  $$('[data-a="tema"]').forEach((b) => { b.textContent = { auto: '◐', light: '☀', dark: '☾' }[prefs.tema]; });
+  if (prefs.tema === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  $$('[data-a="tema"]').forEach((b) => { b.textContent = prefs.tema === 'light' ? '☀' : '☾'; });
 }
+
+// ---------------------------------------------------------------- descanso
+// A página não controla o brilho do iPad; o que ela faz é escurecer tudo por cima (no mini-LED,
+// preto de verdade acende menos a tela) e deixar só o relógio, andando devagar para não marcar.
+let ultimoToque = Date.now(), descansando = false;
+function noite() { const h = horaDaCasa(); return h >= 22 || h < 6; }
+function descansar() {
+  if (descansando || !$('.painel')) return;
+  descansando = true;
+  const d = document.createElement('div');
+  d.className = 'descanso' + (noite() ? ' noite' : '');
+  d.setAttribute('aria-label', 'Tela em descanso. Toque para acordar.');
+  d.innerHTML = '<div class="dorme"><div class="hora num"></div><div class="sub"></div></div>';
+  document.body.append(d);
+  atualizarDescanso();
+}
+function atualizarDescanso() {
+  const d = $('.descanso');
+  if (!d) return;
+  const tz = vista?.casa?.tz || 'America/Sao_Paulo';
+  $('.hora', d).textContent = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: tz }).format(new Date());
+  const abertas = vista ? pendOrdenadas().filter((p) => p.prazo && diferencaDias(hoje(), p.prazo) <= 0).length : 0;
+  $('.sub', d).textContent = abertas ? `${abertas} pendência${abertas > 1 ? 's' : ''} para hoje` : lua().ic + ' ' + lua().nome;
+  d.classList.toggle('noite', noite());
+  const dorme = $('.dorme', d);
+  dorme.style.transform = `translate(${Math.round((Math.random() - .5) * 30)}vw, ${Math.round((Math.random() - .5) * 30)}vh)`;
+}
+function acordar() {
+  ultimoToque = Date.now();
+  if (!descansando) return false;
+  descansando = false;
+  $('.descanso')?.remove();
+  render();
+  return true;
+}
+// o primeiro toque só acorda (não marca nada por engano)
+document.addEventListener('pointerdown', (e) => {
+  if (descansando) { e.preventDefault(); e.stopPropagation(); acordar(); }
+  else ultimoToque = Date.now();
+}, { capture: true });
+document.addEventListener('click', (e) => { if (e.target.closest?.('.descanso')) { e.preventDefault(); e.stopPropagation(); } }, { capture: true });
+setInterval(() => {
+  const min = Number(prefs.descanso);
+  if (!descansando && min > 0 && !$('.veu') && Date.now() - ultimoToque > min * 60000) descansar();
+  if (descansando) atualizarDescanso();
+}, 20000);
 let lock = null, telaMsg = '';
 async function segurarTela() {
   if (!('wakeLock' in navigator)) { telaMsg = window.isSecureContext ? 'Tela sempre acesa: este navegador não suporta' : 'Tela sempre acesa: precisa de HTTPS (use o plano B do README)'; }
@@ -771,11 +918,11 @@ function modoDesejado() {
 function montar() {
   if (!vista) return;
   const modo = modoDesejado();
-  const chave = modo + (modo === 'painel' ? prefs.layout : '');
+  const chave = modo;
   if (chave === modoAtual) return render();
   modoAtual = chave;
   document.body.classList.toggle('modo-painel', modo === 'painel');
-  $('#app').innerHTML = modo === 'painel' ? layoutPainel(prefs.layout) : layoutCelular();
+  $('#app').innerHTML = modo === 'painel' ? layoutPainel() : layoutCelular();
   if (modo === 'celular') montarAba();
   aplicarTema();
   render();
@@ -807,7 +954,15 @@ document.addEventListener('click', (e) => {
   if ((x = t.closest('[data-hab-marcar]'))) return marcarHab(x.dataset.habMarcar);
   if ((x = t.closest('[data-hab-det]'))) return detalheHab(x.dataset.habDet);
   if ((x = t.closest('[data-item-edit]'))) return editarItem(x.dataset.itemEdit);
-  if ((x = t.closest('[data-item]'))) return agir('mercado.alternar', { id: x.dataset.item });
+  if ((x = t.closest('[data-item]'))) {
+    // risca e desliza para fora antes de sair da lista; depois a ação (com desfazer no aviso)
+    if (x.classList.contains('saindo')) return;
+    const id = x.dataset.item;
+    if (x.classList.contains('no-carrinho')) return agir('mercado.alternar', { id });
+    x.classList.add('saindo');
+    setTimeout(() => agir('mercado.alternar', { id }), 650);
+    return;
+  }
   if ((x = t.closest('[data-chip]'))) return agir('mercado.adicionar', { texto: x.dataset.chip });
   if ((x = t.closest('[data-pend-ok]'))) return agir('pendencia.concluir', { id: x.dataset.pendOk });
   if ((x = t.closest('[data-pend-edit]'))) return editarPend(x.dataset.pendEdit);
@@ -815,9 +970,11 @@ document.addEventListener('click', (e) => {
   if ((x = t.closest('[data-aba]'))) { aba = x.dataset.aba; LS.set('painel-aba', aba); diaReg = null; montarAba(); window.scrollTo(0, 0); return; }
   if ((x = t.closest('[data-dia-nav]'))) { diaReg = somarDias(diaReg || hoje(), Number(x.dataset.diaNav)); if (diaReg > hoje()) diaReg = hoje(); montarAba(); return; }
   const a = t.closest('[data-a]')?.dataset.a;
-  if (a === 'tema') { prefs.tema = { auto: 'light', light: 'dark', dark: 'auto' }[prefs.tema]; salvarPrefs(); aplicarTema(); return; }
+  if (a === 'tema') { prefs.tema = prefs.tema === 'light' ? 'dark' : 'light'; salvarPrefs(); aplicarTema(); return; }
   if (a === 'ajustes') return ajustes();
   if (a === 'limpar') return agir('mercado.limpar');
+  if (a === 'foto') { proximaFoto(); reiniciarFotos(); return; }
+  if (a === 'ver-carrinho') return sheet('<section class="card" data-mod="mercado" data-carrinho="1" data-agrupar="1" style="border:0;padding:0;overflow:visible;background:none;box-shadow:none"></section><p class="dica">Tocou por engano? Toque no item para ele voltar para a lista.</p>', (s) => renderMercado($('[data-mod]', s)));
   if (a === 'mais-merc') return sheet('<section class="card" data-mod="mercado" data-agrupar="1" data-editar="1" data-semcampo="1" data-chips="0" style="border:0;padding:0;overflow:visible"></section>', (s) => renderMercado($('[data-mod]', s)));
   if (a === 'mais-pend') return sheet('<section class="card" data-mod="pendencias" style="border:0;padding:0;overflow:visible"></section>', (s) => renderPend($('[data-mod]', s)));
 });
@@ -883,6 +1040,13 @@ setInterval(() => {
   if (fila.length) enviar();
 }, 15000);
 
+// fotos: troca a cada 12 s (parado no descanso); a lista do Pinterest é relida a cada 30 min
+function reiniciarFotos() {
+  clearInterval(fotoTimer);
+  fotoTimer = setInterval(() => { if (!descansando && document.visibilityState === 'visible') proximaFoto(); }, 12000);
+}
+setInterval(() => { if (Date.now() - fotosEm > 30 * 60000) carregarFotos(); }, 5 * 60000);
+
 // ---------------------------------------------------------------- partida
 if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('/sw.js').catch(() => {});
 aplicarTema();
@@ -890,7 +1054,8 @@ if (!token) mostrarParear();
 else {
   recompor();
   if (vista) { diaVisto = hoje(); montar(); }
-  carregar().then(() => { diaVisto = hoje(); });
+  carregar().then(() => { diaVisto = hoje(); carregarFotos(); });
   ouvir();
   segurarTela();
+  reiniciarFotos();
 }

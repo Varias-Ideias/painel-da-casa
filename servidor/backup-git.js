@@ -52,7 +52,7 @@ export async function enviarBackup({ arquivo, nome, pasta, senha, log = console.
   await git(pasta, ['add', `${nome}.enc`]);
   await git(pasta, ['commit', '-m', `backup ${nome.replace(/\.json$/, '')}`]);
   try {
-    await git(pasta, ['push']);
+    await git(pasta, ['push', '-u', 'origin', 'HEAD']); // -u: funciona também no primeiro envio de um repositório vazio
   } catch (e) {
     log(`Aviso: backup cifrado commitado mas não enviado (sem internet?). Vai no próximo envio. ${e.message}`);
   }

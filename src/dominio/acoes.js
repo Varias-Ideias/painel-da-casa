@@ -178,7 +178,7 @@ export function aplicar(estado, acao, ctx) {
         const c = estado.catalogo[i.nome_norm];
         if (c) { c.vezes = (c.vezes || 0) + 1; c.ultimo = ctx.hoje; }
       }
-      return { resultado: {}, fala: i.comprado_em ? `${i.nome} comprado.` : `${i.nome} voltou para a lista.`, desfazer: { tipo: 'mercado.alternar', dados: { id: i.id } } };
+      return { resultado: {}, fala: i.comprado_em ? `No carrinho: ${i.nome.toLowerCase()}.` : `${i.nome} voltou para a lista.`, desfazer: { tipo: 'mercado.alternar', dados: { id: i.id } } };
     }
     case 'mercado.limpar': {
       const comprados = estado.mercado.filter((i) => i.comprado_em);

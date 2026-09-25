@@ -55,6 +55,28 @@ Uma ou duas linhas por decisão: o quê e por quê. As mais novas ficam embaixo.
 - **D20. "Treinei" dito duas vezes não desmarca.** Por voz, marcar é sempre marcar; no toque, o
   segundo toque desmarca.
 
+## 25/09/2026 — pedidos do dono depois do primeiro uso
+
+- **D21. Layout escolhido: C ("Agora").** O A e o B saíram do código. Foram acrescentados o cartão de
+  fotos e o "Hoje" em faixas: cachorros primeiro, depois as pessoas em ordem alfabética (Karen, Matheus).
+- **D22. Visual "floresta à noite", escuro por padrão:** musgo, samambaia, âmbar e rio; luz de folhas
+  andando no fundo; cartões de vidro; Instrument Serif no relógio e nos títulos; anéis de progresso
+  por tipo de hábito; fase da lua calculada no aparelho. O claro ("jardim de manhã") ficou como opção.
+- **D23. Mercado: tocar marca, risca e o item sai da lista** para "🧺 no carrinho" (com Ver e Limpar),
+  em vez de ficar riscado ocupando espaço. O desfazer continua no aviso.
+- **D24. Fotos do painel vêm da pasta pública do Pinterest da Karen** (moodboard), pelo RSS que o
+  Pinterest publica para pastas públicas, na versão 736 px e com cache de 6 h. O feed traz só os
+  **25 pins mais recentes**. Também dá para usar uma pasta local, `dados/fotos/`.
+- **D25. Descanso da tela:** depois de N minutos sem toque (padrão 3), a tela escurece e fica só o
+  relógio, andando para não marcar a tela; entre 22h e 6h fica mais escura. O primeiro toque só
+  acorda. A página **não controla o brilho** do iPad nem impede o bloqueio. Para isso: Bloqueio
+  Automático → Nunca e **Modo Pouca Energia desligado** (com ele o iPad força bloqueio em 30 s).
+- **D26. Backup no GitHub, cifrado** (AES-256-GCM + scrypt), num repositório privado separado. O
+  diário e a gratidão não ficam legíveis no GitHub. Sem a senha, o backup não abre.
+- **D27. Nuvem: vai ser um projeto Supabase novo, pausando o `patinhas`** (o dono liberou pausar
+  patinhas e paperclip; pausa-se só o necessário, e o paperclip é a direção da plataforma). A pausa só
+  acontece quando a migração começar, para não derrubar o patinhas à toa.
+
 ## Limites gratuitos (conferidos em 25/09/2026)
 
 - **Vercel Hobby:** grátis, só para uso pessoal e não comercial, o que serve para a casa. Quem passa do
