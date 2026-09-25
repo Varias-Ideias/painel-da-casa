@@ -16,6 +16,10 @@ a { color: var(--accent); }
 .saudacao { font-family: var(--display); font-style: italic; font-size: 1.5rem; color: var(--accent); }
 .painel [data-mod="mercado"] > .lista, .painel [data-mod="pendencias"] > .lista { flex: 1 1 0; }
 .C #merc .lista { display: grid; grid-template-columns: 1fr; grid-auto-rows: min-content; gap: 6px; }
+/* a lista do mercado rola com o dedo dentro do cartão (o resto do painel fica parado) */
+.painel [data-mod="mercado"] > .lista { overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 22px), transparent); mask-image: linear-gradient(#000 calc(100% - 22px), transparent); padding-bottom: 18px; }
+.painel [data-mod="mercado"] > .lista::-webkit-scrollbar { display: none; }
 .C #merc .lista .mais { grid-column: 1 / -1; }
 @media (orientation: portrait) {
   .painel.C { grid-template: "hab hab" auto "agora fotos" 1fr "agora merc" 1fr / 1fr 1fr; }

@@ -458,9 +458,11 @@ function renderMercado(el) {
   } else {
     corpo = itens.map((i) => itemRow(i, editar)).join('');
   }
-  if (!itens.length) corpo = soCarrinho ? '<p class="vazio">Nada no carrinho.</p>' : '<p class="vazio">Nada na lista. Anote aqui em cima, pela barra “Anotar” ou pela voz.</p>';
-  $('.lista', el).innerHTML = corpo;
-  if (!agrupar) caber($('.lista', el), itens.length, 'itens', 'mais-merc');
+  if (!itens.length) corpo = soCarrinho ? '<p class="vazio">Nada no carrinho.</p>' : '<p class="vazio">Nada na lista. Toque em ＋ Itens ou escreva na barra do ＋.</p>';
+  const lista = $('.lista', el);
+  const rolagem = lista.scrollTop; // redesenhar (ex.: alguém marcou no celular) não pode jogar a lista para o topo
+  lista.innerHTML = corpo;
+  lista.scrollTop = rolagem;
   const naLista = new Set(faltam.map((i) => i.nome_norm));
   const freq = soCarrinho ? [] : Object.entries(vista.catalogo || {}).filter(([n]) => !naLista.has(n)).sort((a, b) => (b[1].vezes || 0) - (a[1].vezes || 0)).slice(0, Number(el.dataset.chips ?? 4));
   $('.chips', el).innerHTML = freq.map(([, c]) => `<button type="button" class="chip" data-chip="${esc(c.nome)}">+ ${esc(c.nome)}</button>`).join('');
