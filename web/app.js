@@ -439,7 +439,7 @@ function renderMercado(el) {
   const editar = el.dataset.editar === '1';
   const soCarrinho = el.dataset.carrinho === '1';
   if (!el.dataset.pronto) {
-    el.innerHTML = `<header><h2>${soCarrinho ? 'No carrinho' : 'Mercado'}</h2><span class="muted num cont"></span>${soCarrinho ? '' : '<button type="button" class="chip" data-a="mercado-rapido" aria-label="Escolher itens por toque">＋ Itens</button>'}</header>
+    el.innerHTML = `<header><h2>${soCarrinho ? 'No carrinho' : 'Mercado'}</h2>${soCarrinho ? '' : '<button type="button" class="chip" data-a="mercado-rapido" aria-label="Escolher itens por toque">＋ Itens</button>'}</header>
       ${el.dataset.semcampo || soCarrinho ? '' : `<form class="anotar" data-form="mercado"><input name="texto" list="catalogo-lista" autocomplete="off" enterkeyhint="done" placeholder="leite, pão e 2 dúzias de ovos" aria-label="Adicionar itens ao mercado"><button type="submit">Adicionar</button></form>`}
       <div class="chips"></div><div class="lista"></div><div class="carrinho"></div>`;
     el.dataset.pronto = '1';
@@ -448,7 +448,6 @@ function renderMercado(el) {
   const faltam = todos.filter((i) => !i.comprado_em);
   const noCarrinho = todos.filter((i) => i.comprado_em);
   const itens = soCarrinho ? noCarrinho : faltam;
-  $('.cont', el).textContent = soCarrinho ? '' : faltam.length ? `${faltam.length} para comprar` : 'lista vazia';
   let corpo = '';
   if (agrupar) {
     let ultima = '';
@@ -565,14 +564,12 @@ function pendRow(p) {
 function renderPend(el) {
   const lim = Number(el.dataset.limite) || 999;
   if (!el.dataset.pronto) {
-    el.innerHTML = `<header><h2>Pendências</h2><span class="muted cont"></span>${el.closest('.painel') ? '<button type="button" class="chip" data-a="nova-pendencia" aria-label="Nova pendência">＋</button>' : ''}</header>
+    el.innerHTML = `<header><h2>Pendências</h2>${el.closest('.painel') ? '<button type="button" class="chip" data-a="nova-pendencia" aria-label="Nova pendência">＋</button>' : ''}</header>
       ${el.dataset.form === '1' ? '<button type="button" class="botao" data-a="nova-pendencia">＋ Nova pendência</button>' : ''}
       <div class="lista"></div>`;
     el.dataset.pronto = '1';
   }
   const ps = pendOrdenadas();
-  const atrasadas = ps.filter((p) => p.prazo && diferencaDias(hoje(), p.prazo) < 0).length;
-  $('.cont', el).innerHTML = `${atrasadas ? `<b style="color:var(--late)">${atrasadas} atrasada${atrasadas > 1 ? 's' : ''}</b> · ` : ''}${ps.length} aberta${ps.length === 1 ? '' : 's'}`;
   const filtro = el.dataset.ate ? ps.filter((p) => p.prazo && diferencaDias(hoje(), p.prazo) <= Number(el.dataset.ate)) : ps;
   let corpo = filtro.slice(0, lim).map(pendRow).join('');
   if (filtro.length > lim) corpo += `<button type="button" class="mais" data-a="mais-pend">+${filtro.length - lim} pendências</button>`;
@@ -798,7 +795,7 @@ function renderSync(el) {
 }
 function renderCaptura(el) {
   if (el.dataset.pronto) return;
-  el.innerHTML = `<form class="anotar captura" data-form="captura"><input name="texto" autocomplete="off" enterkeyhint="send" placeholder="Anotar: “leite e pão”, “treinei”, “pendência: IPTU até sexta”" aria-label="Anotar rápido"><button type="submit">Anotar</button></form>`;
+  el.innerHTML = `<form class="anotar captura" data-form="captura"><input name="texto" autocomplete="off" enterkeyhint="send" placeholder="Escreva ou fale: “leite e pão”, “treinei”…" aria-label="Anotar rápido"><button type="submit" class="mais-barra" aria-label="Adicionar">＋</button></form>`;
   el.dataset.pronto = '1';
 }
 
@@ -866,7 +863,7 @@ function telaCheia() {
   const p = (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
   p?.catch?.(() => toast('Este aparelho não deixou entrar em tela cheia.'));
 }
-const botoesTopo = () => `<div class="acoes"><button type="button" class="icone mais-rapido" data-a="adicionar" aria-label="Adicionar">＋</button>${podeTelaCheia() ? '<button type="button" class="icone" data-a="tela-cheia" aria-label="Tela cheia">⛶</button>' : ''}<button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${prefs.tema === 'light' ? '☀' : '☾'}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
+const botoesTopo = () => `<div class="acoes">${podeTelaCheia() ? '<button type="button" class="icone" data-a="tela-cheia" aria-label="Tela cheia">⛶</button>' : ''}<button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${prefs.tema === 'light' ? '☀' : '☾'}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
 
 function layoutPainel() {
   const grupo = (lado, dono) => `<div class="grupo"><div class="lado">${lado}</div><div class="fila" data-mod="habitos" data-dono="${esc(dono)}" data-rotulos="0"></div></div>`;
@@ -1217,7 +1214,7 @@ document.addEventListener('submit', (e) => {
   }
   if (tipo === 'captura') {
     const txt = f.texto.value.trim();
-    if (!txt) return;
+    if (!txt) return adicionarRapido(); // campo vazio: o ＋ abre o menu de adicionar
     agir('captura', { texto: txt, origem: 'app' });
     f.texto.value = '';
     return;

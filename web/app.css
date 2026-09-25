@@ -196,8 +196,10 @@ details.campo[open] > summary::before { content: "− "; }
 .rapido button span { font-size: 2rem; margin-bottom: auto; }
 .rapido button b { font-family: var(--display); font-weight: 400; font-size: 1.4rem; }
 .rapido button small { color: var(--muted); font-size: .8rem; }
+.anotar button.mais-barra { font-size: 1.7rem; padding: 0; width: var(--toque); }
 .icone.mais-rapido { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-size: 1.4rem; font-weight: 700; }
-.card > header .chip { min-height: 40px; padding: 0 12px; margin-left: auto; }
+[data-mod="pendencias"] > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card > header .chip, [data-mod] > header .chip { min-height: 40px; padding: 0 12px; margin-left: auto; }
 .card > header { align-items: center; }
 
 /* ---------- Formulários, ajustes, pareamento ---------- */
