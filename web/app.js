@@ -276,10 +276,11 @@ function habRow(h) {
   }
   const cls = ['hab', s.tipo === 'evitar' ? 'evitar' : '', s.feito ? 'feito' : ''].join(' ');
   const rot = s.tipo === 'evitar' ? `Registrar deslize em ${h.nome}` : `Marcar ${h.nome}`;
-  return `<div class="${cls}">
-    <button type="button" class="alvo" data-hab-marcar="${esc(h.id)}" aria-label="${esc(rot)}">${alvo}</button>
-    <button type="button" class="nome" data-hab-det="${esc(h.id)}">${s.tipo === 'evitar' ? esc(h.emoji || '') + ' ' : ''}${esc(h.nome)}${sub}</button>
-    <div class="seq num">${seq}</div></div>`;
+  // a linha inteira marca; tocar e segurar abre o histórico
+  return `<button type="button" class="${cls}" data-hab-marcar="${esc(h.id)}" data-segurar="${esc(h.id)}" aria-label="${esc(rot)}. Segure para ver o histórico">
+    <span class="alvo">${alvo}</span>
+    <span class="nome">${s.tipo === 'evitar' ? esc(h.emoji || '') + ' ' : ''}${esc(h.nome)}${sub}</span>
+    <span class="seq num">${seq}</span></button>`;
 }
 /** Anel SVG: progresso de 0 a 1, ou `gomos` iguais (semana: 3 vezes = 3 gomos). */
 function anel(p, gomos = 0, feitos = 0) {
@@ -317,12 +318,12 @@ function habTile(h) {
   if (dono?.tipo === 'pet') sub = `${dono.nome} · ${sub}`;
   const brilhou = s.feito && Date.now() - (brilho[h.id] || 0) < 1500;
   const rot = s.tipo === 'evitar' ? `Registrar deslize em ${h.nome}` : s.tipo === 'qtd' ? `Somar ${h.passo} ${h.unidade || ''} em ${h.nome}` : `Marcar ${h.nome}`;
-  return `<div class="tile ${s.tipo} ${s.feito ? 'feito' : ''} ${brilhou ? 'brilha' : ''}">
-    <button type="button" data-hab-marcar="${esc(h.id)}" aria-label="${esc(rot)}" style="display:contents">
-      <span class="anel">${svg}${dentro}</span></button>
+  // o mosaico inteiro marca; tocar e segurar abre o histórico
+  return `<button type="button" class="tile ${s.tipo} ${s.feito ? 'feito' : ''} ${brilhou ? 'brilha' : ''}" data-hab-marcar="${esc(h.id)}" data-segurar="${esc(h.id)}" aria-label="${esc(rot)}. Segure para ver o histórico">
+    <span class="anel">${svg}${dentro}</span>
     ${s.feito ? '<span class="ok" aria-hidden="true">✓</span>' : ''}
-    <button type="button" data-hab-det="${esc(h.id)}" style="display:contents"><span class="t">${esc(h.nome)}</span><span class="s num">${sub}</span></button>
-  </div>`;
+    <span class="t">${esc(h.nome)}</span><span class="s num">${sub}</span>
+  </button>`;
 }
 
 function marcarHab(id) {
@@ -449,7 +450,7 @@ function itensOrdenados() {
 /** Item com bolinha: tocar marca ✓, risca e o item some da lista (com desfazer no aviso). */
 function itemRow(i, editar) {
   const btn = `<button type="button" class="item" data-item="${esc(i.id)}" aria-label="Pegou: ${esc(i.nome)}">
-    <span class="bola" aria-hidden="true"></span><span class="n">${esc(i.nome)}</span><span class="qtd">${esc(i.qtd)}</span></button>`;
+    <span class="bola" aria-hidden="true"></span><span class="n">${esc(i.nome)}</span></button>`;
   if (!editar) return btn;
   // no celular, ⋯ edita quantidade e seção
   return `<div class="linha-item">${btn}<button type="button" class="mexer" data-item-edit="${esc(i.id)}" aria-label="Editar ${esc(i.nome)}">⋯</button></div>`;
@@ -522,14 +523,18 @@ const SUGESTOES = {
  * aceso); tocar de novo tira. Para o que não está aqui, um campo "Outro" no fim.
  */
 function mercadoRapido() {
+  let editando = false; // "Editar": tocar num item o esquece (digitado errado, não compra mais)
   const desenhar = (c) => {
     const naLista = new Map(vista.mercado.filter((i) => !i.comprado_em).map((i) => [i.nome_norm, i]));
     const porSecao = new Map(vista.secoes.map((s) => [s, new Map()]));
     for (const [s, nomes] of Object.entries(SUGESTOES)) for (const n of nomes) porSecao.get(s)?.set(normalizar(n), n);
     for (const [nn, cat] of Object.entries(vista.catalogo || {})) (porSecao.get(cat.secao) || porSecao.get('Outros'))?.set(nn, cat.nome);
     for (const i of naLista.values()) (porSecao.get(i.secao) || porSecao.get('Outros'))?.set(i.nome_norm, i.nome);
-    c.innerHTML = `<h2>Mercado</h2><p class="dica">Toque no que está faltando. Aceso = na lista. Toque de novo para tirar.</p>
+    const apagavel = (nn) => Boolean(vista.catalogo?.[nn]) || vista.mercado.some((i) => i.nome_norm === nn);
+    c.innerHTML = `<div class="linha" style="align-items:center"><h2>Mercado</h2><button type="button" class="chip" data-rapido-editar>${editando ? 'Pronto' : '✎ Editar'}</button></div>
+      <p class="dica">${editando ? 'Toque no ✕ para apagar um item (ex.: digitado errado). Dá para desfazer.' : 'Toque no que está faltando. Aceso = na lista. Toque de novo para tirar.'}</p>
       ${[...porSecao].filter(([, m]) => m.size).map(([s, m]) => `<div class="sec">${esc(s)}</div><div class="chips toque">${[...m].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR')).map(([nn, nome]) => {
+        if (editando) return apagavel(nn) ? `<button type="button" class="chip apagar" data-esquecer="${esc(nome)}" aria-label="Apagar ${esc(nome)}">✕ ${esc(nome)}</button>` : '';
         const it = naLista.get(nn);
         return `<button type="button" class="chip ${it ? 'on' : ''}" data-rapido="${esc(nome)}" ${it ? `data-rapido-id="${esc(it.id)}"` : ''} aria-pressed="${Boolean(it)}">${it ? '✓ ' : ''}${esc(nome)}</button>`;
       }).join('')}</div>`).join('')}
@@ -539,6 +544,9 @@ function mercadoRapido() {
     const c = $('.conteudo', s);
     desenhar(c);
     c.addEventListener('click', (e) => {
+      if (e.target.closest('[data-rapido-editar]')) { editando = !editando; desenhar(c); return; }
+      const x = e.target.closest('[data-esquecer]');
+      if (x) { agir('catalogo.remover', { nome: x.dataset.esquecer }); desenhar(c); return; }
       const b = e.target.closest('[data-rapido]');
       if (!b) return;
       if (b.dataset.rapidoId) agir('mercado.remover', { id: b.dataset.rapidoId }, { silencioso: true });
@@ -741,7 +749,7 @@ function pessoaMenu(id) {
       <div class="linha" style="align-items:center"><h3>Rotina</h3><button type="button" class="chip" data-nova-rotina>+ Nova rotina</button></div>
       <div class="lista" style="overflow:visible">${hs.filter((h) => !h.arquivado).map((h) => `<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px">${habRow(h)}<button type="button" class="mexer" data-editar-rotina="${esc(h.id)}" aria-label="Editar ${esc(h.nome)}">✎</button></div>`).join('') || '<p class="vazio">Nenhuma rotina ainda.</p>'}</div>
       ${hs.some((h) => h.arquivado) ? `<details><summary class="dica">Arquivadas (${hs.filter((h) => h.arquivado).length})</summary>${hs.filter((h) => h.arquivado).map((h) => `<div class="linha-hab arq"><span>${esc(h.emoji || '•')}</span><span>${esc(h.nome)}</span><button type="button" class="chip" data-editar-rotina="${esc(h.id)}">Reativar</button></div>`).join('')}</details>` : ''}
-      <p class="dica">Toque no círculo para marcar, no nome para ver o histórico e corrigir dias, e no ✎ para editar ou arquivar.</p>`;
+      <p class="dica">Toque na rotina para marcar; segure para ver o histórico e corrigir dias; ✎ para editar ou arquivar.</p>`;
   };
   sheet('<div class="conteudo" style="display:flex;flex-direction:column;gap:14px"></div>', (s, fechar) => {
     const c = $('.conteudo', s);
@@ -774,7 +782,8 @@ function lua(agora = new Date()) {
   const fases = [[1.85, '🌑', 'Lua nova'], [5.54, '🌒', 'Lua crescente'], [9.23, '🌓', 'Quarto crescente'], [12.92, '🌔', 'Crescente gibosa'],
     [16.61, '🌕', 'Lua cheia'], [20.30, '🌖', 'Minguante gibosa'], [23.99, '🌗', 'Quarto minguante'], [27.68, '🌘', 'Lua minguante'], [99, '🌑', 'Lua nova']];
   const [, ic, nome] = fases.find(([lim]) => idade < lim);
-  return { ic, nome };
+  const ate = Math.round(idade < 14.77 ? 14.77 - idade : SINODICO - idade);
+  return { ic, nome, dias: ate <= 1 ? (idade < 14.77 ? 'cheia hoje ou amanhã' : 'nova hoje ou amanhã') : idade < 14.77 ? `cheia em ${ate} dias` : `nova em ${ate} dias` };
 }
 function horaDaCasa(agora = new Date()) {
   return Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: vista?.casa?.tz || 'America/Sao_Paulo' }).format(agora));
@@ -788,7 +797,7 @@ function renderRelogio(el) {
   const saud = h >= 5 && h < 12 ? 'Bom dia' : h >= 12 && h < 18 ? 'Boa tarde' : 'Boa noite';
   const l = lua(agora);
   el.innerHTML = `<span class="saudacao">${saud}, casa</span><span class="hora num">${hora}</span>
-    <span class="data">${data.charAt(0).toUpperCase() + data.slice(1)}</span><span class="lua">${l.ic} ${l.nome}</span>`;
+    <span class="data">${data.charAt(0).toUpperCase() + data.slice(1)}</span><span class="lua"><i aria-hidden="true">${l.ic}</i><span><b>${l.nome}</b>${l.dias}</span></span>`;
 }
 function renderQuem(el) {
   const p = membro(el.dataset.pessoa);
@@ -1192,8 +1201,26 @@ function mostrarParear() {
 }
 
 // ---------------------------------------------------------------- eventos
+// Tocar e segurar numa rotina (~0,5 s) abre o histórico; o toque normal marca.
+let segurou = false, timerSegurar = null, pontoIni = null;
+const soltar = () => { clearTimeout(timerSegurar); $$('.segurando').forEach((x) => x.classList.remove('segurando')); };
+document.addEventListener('pointerdown', (e) => {
+  const el = e.target.closest?.('[data-segurar]');
+  if (!el || descansando) return;
+  segurou = false;
+  pontoIni = [e.clientX, e.clientY];
+  soltar();
+  el.classList.add('segurando');
+  timerSegurar = setTimeout(() => { segurou = true; el.classList.remove('segurando'); detalheHab(el.dataset.segurar); }, 550);
+});
+document.addEventListener('pointermove', (e) => { if (pontoIni && Math.hypot(e.clientX - pontoIni[0], e.clientY - pontoIni[1]) > 10) soltar(); });
+document.addEventListener('pointerup', soltar);
+document.addEventListener('pointercancel', soltar);
+document.addEventListener('contextmenu', (e) => { if (e.target.closest?.('[data-segurar]')) e.preventDefault(); });
+
 document.addEventListener('click', (e) => {
   const t = e.target;
+  if (segurou) { segurou = false; e.preventDefault(); return; } // o clique que termina o "segurar" não marca
   if (t.closest('.veu') && !t.closest('[data-hab-marcar],[data-hab-det],[data-item],[data-item-edit],[data-chip],[data-pend-ok],[data-pend-edit],[data-a]')) return;
   let x;
   if ((x = t.closest('[data-hab-marcar]'))) return marcarHab(x.dataset.habMarcar);

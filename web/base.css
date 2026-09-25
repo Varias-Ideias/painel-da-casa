@@ -92,8 +92,11 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; line-heig
 /* Relógio */
 .relogio { display: flex; flex-direction: column; gap: 4px; }
 .relogio .hora { font-family: var(--display); font-size: 6.2rem; line-height: .9; letter-spacing: -.01em; }
-.relogio .data { font-size: 1.05rem; color: var(--muted); }
-.relogio .lua { font-size: .9rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.relogio .data { font-size: 1.05rem; color: var(--muted); white-space: nowrap; }
+.relogio .lua { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.relogio .lua i { font-style: normal; font-size: 1.9rem; line-height: 1; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle, rgba(235, 225, 190, .18), transparent 70%); filter: drop-shadow(0 0 8px rgba(235, 225, 190, .35)); }
+.relogio .lua b { display: block; color: var(--ink); font-weight: 700; font-size: .9rem; }
 
 /* Hábito em lista (celular e sheets) */
 .hab { display: grid; grid-template-columns: var(--toque) 1fr auto; align-items: center; gap: 12px; min-height: var(--toque); }

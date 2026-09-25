@@ -31,7 +31,10 @@ a { color: var(--accent); }
 .C #hab .grupos { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-around; gap: 6px; }
 .grupo { display: grid; grid-template-columns: 176px 1fr; gap: 14px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
 /* no painel, cada grupo é uma linha só de mosaicos compactos (rola de lado se um dia não couber) */
-.painel .grupo .fila { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; padding-block: 2px; }
+.tile { font: inherit; color: inherit; cursor: pointer; -webkit-touch-callout: none; }
+.hab { width: 100%; text-align: left; font: inherit; color: inherit; -webkit-touch-callout: none; }
+.tile.segurando, .hab.segurando { transform: scale(.94); transition: transform .5s ease-in; }
+.painel .grupo .fila { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; touch-action: pan-x; overscroll-behavior: contain; scrollbar-width: none; gap: 8px; padding-block: 2px; }
 .painel .grupo .fila::-webkit-scrollbar { display: none; }
 /* quando tem mais rotina do que cabe: a borda direita esmaece, sinal de que dá para arrastar */
 .painel .grupo .fila.transborda { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); padding-right: 40px; }
@@ -210,6 +213,7 @@ details.campo > summary { cursor: pointer; list-style: none; min-height: 40px; d
 details.campo > summary::before { content: "＋ "; color: var(--accent); }
 details.campo[open] > summary::before { content: "− "; }
 .chips.toque .chip { min-height: 48px; }
+.chips.toque .chip.apagar { background: var(--late-soft); color: var(--late); border-color: transparent; }
 .chips.toque .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .rapido { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rapido button {

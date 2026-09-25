@@ -229,6 +229,21 @@ export function aplicar(estado, acao, ctx) {
       if (d.nome !== undefined && String(d.nome).trim()) { i.nome = String(d.nome).trim(); i.nome_norm = normalizar(i.nome); }
       return { resultado: {}, fala: `${i.nome} atualizado.`, desfazer: { tipo: 'mercado.editar', dados: { id: i.id, ...antes } } };
     }
+    // "Esquecer" um item da grade de toque (ex.: digitado errado): sai do catálogo e da lista.
+    case 'catalogo.remover': {
+      const nn = normalizar(String(d.nome || ''));
+      const cat = estado.catalogo[nn] || null;
+      const itens = estado.mercado.filter((i) => i.nome_norm === nn);
+      if (!cat && !itens.length) throw new ErroAcao('Item não encontrado', 404);
+      delete estado.catalogo[nn];
+      estado.mercado = estado.mercado.filter((i) => i.nome_norm !== nn);
+      return { resultado: {}, fala: `${cat?.nome || itens[0].nome} esquecido.`, desfazer: { tipo: 'catalogo.restaurar', dados: { nn, cat, itens } } };
+    }
+    case 'catalogo.restaurar': {
+      if (d.cat) estado.catalogo[d.nn] = d.cat;
+      estado.mercado.push(...(d.itens || []).filter((i) => !estado.mercado.some((x) => x.id === i.id)));
+      return { resultado: {}, fala: 'Desfeito.', desfazer: { tipo: 'catalogo.remover', dados: { nome: d.nn } } };
+    }
     case 'secoes.ordenar': {
       const nova = d.secoes || [];
       if (nova.length !== estado.secoes.length || !nova.every((s) => estado.secoes.includes(s))) throw new ErroAcao('Ordem de seções inválida');

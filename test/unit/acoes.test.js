@@ -260,6 +260,17 @@ test('teste de estresse: muito de tudo, e remover limpa tudo (inclusive privado 
   assert.equal(Object.values(estado.privado.k || {}).length, 0);
 });
 
+test('catálogo: esquecer item digitado errado tira da grade e da lista; desfazer volta', () => {
+  const { estado, fazer } = novo();
+  fazer('mercado.adicionar', { texto: 'leitee' });
+  const r = fazer('catalogo.remover', { nome: 'Leitee' });
+  assert.equal(estado.catalogo.leitee, undefined);
+  assert.equal(estado.mercado.length, 0);
+  fazer(r.desfazer.tipo, r.desfazer.dados);
+  assert.ok(estado.catalogo.leitee);
+  assert.equal(estado.mercado.length, 1);
+});
+
 test('ação desconhecida é recusada', () => {
   const { fazer } = novo();
   assert.throws(() => fazer('apagar.tudo', {}), /desconhecida/);
