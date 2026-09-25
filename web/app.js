@@ -783,6 +783,8 @@ function ajustes() {
     <div class="ajuste"><span class="rot">Este aparelho</span><p>${esc(sou)} · <span data-mod="sync"></span></p>
       <span class="rot">Tela</span><div class="opcoes" data-pref="modo">${[['auto', 'Automática'], ['painel', 'Painel'], ['celular', 'Celular']].map(([k, v]) => `<button type="button" data-v="${k}" class="${prefs.modo === k ? 'on' : ''}">${v}</button>`).join('')}</div>
       <span class="rot">Tema</span><div class="opcoes" data-pref="tema">${[['dark', '☾ Floresta à noite'], ['light', '☀ Jardim de manhã']].map(([k, v]) => `<button type="button" data-v="${k}" class="${prefs.tema === k ? 'on' : ''}">${v}</button>`).join('')}</div>
+      <span class="rot">Economia de bateria</span><div class="opcoes" data-pref="economia">${[['nao', 'Visual completo'], ['sim', 'Econômico']].map(([k, v]) => `<button type="button" data-v="${k}" class="${(prefs.economia || 'nao') === k ? 'on' : ''}">${v}</button>`).join('')}</div>
+      <span class="dica">Econômico: sem animação no fundo, sem desfoque nos cartões, fotos sem zoom. Mesmo no visual completo, nada anima enquanto a tela descansa.</span>
       <span class="rot">Descansar a tela depois de</span><div class="opcoes" data-pref="descanso">${[[1, '1 min'], [3, '3 min'], [5, '5 min'], [10, '10 min'], [0, 'Nunca']].map(([k, v]) => `<button type="button" data-v="${k}" class="${Number(prefs.descanso) === k ? 'on' : ''}">${v}</button>`).join('')}</div>
       <span class="dica">A tela escurece e mostra só o relógio; entre 22h e 6h fica mais escura. Um toque acorda. Para o iPad não bloquear sozinho: Ajustes do iPad → Tela e Brilho → Bloqueio Automático → Nunca, e deixe o <b>Modo Pouca Energia desligado</b> (com ele ligado o iPad força bloqueio em 30 s).</span>
       <span class="dica" data-mod="tela"></span></div>
@@ -848,6 +850,7 @@ function ajustes() {
 function aplicarTema() {
   if (prefs.tema === 'light') document.documentElement.setAttribute('data-theme', 'light');
   else document.documentElement.removeAttribute('data-theme');
+  document.body.classList.toggle('economia', prefs.economia === 'sim');
   $$('[data-a="tema"]').forEach((b) => { b.textContent = prefs.tema === 'light' ? '☀' : '☾'; });
 }
 
@@ -864,6 +867,7 @@ function descansar() {
   d.setAttribute('aria-label', 'Tela em descanso. Toque para acordar.');
   d.innerHTML = '<div class="dorme"><div class="hora num"></div><div class="sub"></div></div>';
   document.body.append(d);
+  document.body.classList.add('dormindo'); // para tudo que anima por baixo
   atualizarDescanso();
 }
 function atualizarDescanso() {
@@ -882,6 +886,7 @@ function acordar() {
   if (!descansando) return false;
   descansando = false;
   $('.descanso')?.remove();
+  document.body.classList.remove('dormindo');
   render();
   return true;
 }

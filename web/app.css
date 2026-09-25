@@ -82,6 +82,16 @@ a { color: var(--accent); }
 .fotos .legenda .pts i.on { background: #fff; }
 .fotos .vazio-fotos { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px; color: var(--muted); }
 
+/* ---------- Economia de bateria ----------
+   .dormindo: durante o descanso, nada anima por baixo da tela escura (antes, fundo e fotos
+   continuavam gastando GPU). .economia: escolha nos ajustes — sem animação, sem desfoque. */
+body.dormindo::before, body.dormindo::after, body.economia::before, body.economia::after { animation: none; }
+body.dormindo .painel { visibility: hidden; }
+body.economia .card, body.economia .veu { -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.economia .card { background: var(--surface-solid); }
+body.economia .fotos img.on { animation: none; transform: none; }
+body.economia .fotos img { transition-duration: .6s; }
+
 /* ---------- Descanso: a tela fica ligada, escura, com o relógio andando devagar ---------- */
 .descanso { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .9); display: grid; place-items: center; cursor: pointer; animation: apaga 1.2s ease; }
 .descanso.noite { background: #000; }
