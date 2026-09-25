@@ -224,6 +224,14 @@ function enderecos() {
 // Execução direta: `node servidor/servidor.js`
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const { servidor, banco } = criarServidor();
+  servidor.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\nA porta ${PORTA} já está em uso: provavelmente o Painel da Casa já está rodando em outra janela.`);
+      console.error(`Feche a outra janela (ou use outra porta: set PORTA=8766 && npm start).\n`);
+      process.exit(1);
+    }
+    throw err;
+  });
   servidor.listen(PORTA, '0.0.0.0', () => {
     const ips = enderecos();
     console.log(`\nPainel da Casa rodando na porta ${PORTA}. Dados em ${DADOS}`);
