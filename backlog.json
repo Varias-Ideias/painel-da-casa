@@ -1,0 +1,45 @@
+{
+  "itens": [
+    {
+      "id": "F1",
+      "titulo": "Fase 1: layouts do painel (iPad paisagem/retrato + celular) com dados fictícios",
+      "tamanho": "fase",
+      "risco": "baixo",
+      "faixa": "claude-code",
+      "depende_de": [],
+      "pai": null,
+      "estado": "aguardando-aprovacao-fase-0"
+    },
+    {
+      "id": "B1",
+      "titulo": "Esqueleto Next.js + TS estrito + Tailwind + shadcn/ui com o seed fictício em JSON (sem Supabase)",
+      "tamanho": "1 sessão",
+      "risco": "baixo",
+      "faixa": "claude-code",
+      "depende_de": [],
+      "pai": "F1",
+      "estado": "pronto-para-comecar"
+    },
+    {
+      "id": "B2",
+      "titulo": "2 ou 3 propostas do painel do iPad (1366×1024 e 1024×1366), alvos ≥ 56 px, legível a 2 m",
+      "tamanho": "1 sessão",
+      "risco": "baixo",
+      "faixa": "claude-code",
+      "depende_de": ["B1"],
+      "pai": "F1",
+      "estado": "a-fazer"
+    },
+    {
+      "id": "B3",
+      "titulo": "Versão do celular com abas (Hoje, Mercado, Pendências, Registro) + preview para abrir no iPad",
+      "tamanho": "1 sessão",
+      "risco": "medio",
+      "faixa": "claude-code",
+      "depende_de": ["B2"],
+      "pai": "F1",
+      "estado": "a-fazer",
+      "pare": "criar o projeto na Vercel é item do PARE.md: pedir ok ao dono antes"
+    }
+  ]
+}

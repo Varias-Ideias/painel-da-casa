@@ -1,0 +1,23 @@
+# dependências e build
+node_modules/
+.next/
+out/
+dist/
+
+# segredos: nunca dentro da árvore (ver ESTRUTURA.md do núcleo)
+.env
+.env.*
+!.env.example
+*.key
+Key.txt
+
+# ferramentas e máquina
+.vercel/
+.claude/settings.local.json
+.claude/worktrees/
+relatorio/
+test-results/
+playwright-report/
+*.log
+.DS_Store
+Thumbs.db

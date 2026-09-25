@@ -1,0 +1,16 @@
+{
+  "name": "painel-da-casa",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Hábitos, mercado, pendências e registro do dia num painel sempre aberto no iPad da casa.",
+  "scripts": {
+    "portoes": "portao-contexto",
+    "test": "portao-contexto"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@varias-ideias/plataforma": "file:../../OneDrive/Documentos/build/plataforma"
+  }
+}
