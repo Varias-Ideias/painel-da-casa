@@ -10,6 +10,7 @@ import { aplicar } from '/dominio/acoes.js';
 import { estadoHabito, historico } from '/dominio/habitos.js';
 import { hojeNoFuso, somarDias, diferencaDias, formatoCurto, formatoRelativo } from '/dominio/datas.js';
 import { normalizar } from '/dominio/mercado.js';
+import { opcoes, contador, gradeEmojis, paleta, prazos, quem as quemOp, caras, CARAS_HUMOR, CARAS_ENERGIA, ligarEntradas, valor, definirContador, EMOJIS_ROTINA, EMOJIS_PESSOA } from '/entradas.js';
 
 // ---------------------------------------------------------------- utilidades
 const $ = (s, el = document) => el.querySelector(s);
@@ -368,35 +369,53 @@ function detalheHab(id) {
   });
 }
 const TIPOS_HAB = { check: 'Feito / não feito', qtd: 'Com quantidade', semana: 'X vezes por semana', evitar: 'Evitar (conta dias sem)' };
+const CARTOES_TIPO = [
+  ['check', '✓', 'Feito ou não', 'meditar, skincare'],
+  ['qtd', '💧', 'Com quantidade', '2 L de água, 20 min'],
+  ['semana', '📅', 'Vezes por semana', 'treino 3x'],
+  ['evitar', '🚫', 'Evitar', 'sem doce: conta os dias sem'],
+];
+// unidade → [meta padrão, passo do botão, passo do contador]
+const UNIDADES = { ml: [2000, 250, 250], L: [2, 1, 1], min: [20, 10, 5], 'páginas': [10, 5, 5], vezes: [2, 1, 1], km: [5, 1, 1], passos: [8000, 1000, 1000] };
+/** Rotina nova ou editada, toda por toque: só o nome é digitado. */
 function editarHab(id, membroPadrao = null) {
-  const h = id ? vista.habitos.find((x) => x.id === id) : { nome: '', emoji: '', tipo: 'check', membro: membroPadrao || (eu !== 'casa' ? eu : pessoas()[0]?.id), meta: 2000, unidade: 'ml', passo: 250, vezes_semana: 3, apelidos: [] };
+  const h = id ? vista.habitos.find((x) => x.id === id) : { nome: '', emoji: '🌱', tipo: 'check', membro: membroPadrao || (eu !== 'casa' ? eu : pessoas()[0]?.id), meta: 2000, unidade: 'ml', passo: 250, vezes_semana: 3, apelidos: [] };
+  const un = UNIDADES[h.unidade] ? h.unidade : 'ml';
   sheet(`<h2>${id ? 'Editar rotina' : 'Nova rotina'}</h2>
-    <form class="conteudo" style="display:flex;flex-direction:column;gap:14px" data-form-hab>
-      <div class="grade2"><div class="campo"><label for="h-nome">Nome</label><input id="h-nome" type="text" required maxlength="40" value="${esc(h.nome)}"></div>
-      <div class="campo"><label for="h-emoji">Emoji</label><input id="h-emoji" type="text" maxlength="4" value="${esc(h.emoji || '')}"></div></div>
-      <div class="campo"><label for="h-membro">De quem</label><select id="h-membro">${vista.membros.map((m) => `<option value="${esc(m.id)}" ${m.id === h.membro ? 'selected' : ''}>${esc(m.emoji)} ${esc(m.nome)}</option>`).join('')}</select></div>
-      <div class="campo"><label for="h-tipo">Tipo</label><select id="h-tipo">${Object.entries(TIPOS_HAB).map(([k, v]) => `<option value="${k}" ${k === h.tipo ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-      <div class="grade2" data-so="qtd"><div class="campo"><label for="h-meta">Meta por dia</label><input id="h-meta" type="number" min="1" value="${esc(h.meta ?? 1)}"></div>
-        <div class="campo"><label for="h-unidade">Unidade</label><input id="h-unidade" type="text" maxlength="10" value="${esc(h.unidade || '')}"></div>
-        <div class="campo"><label for="h-passo">Botão soma</label><input id="h-passo" type="number" min="1" value="${esc(h.passo ?? 1)}"></div></div>
-      <div class="campo" data-so="semana"><label for="h-vezes">Vezes por semana</label><input id="h-vezes" type="number" min="1" max="7" value="${esc(h.vezes_semana ?? 3)}"></div>
-      <div class="campo"><label for="h-apelidos">Apelidos para voz</label><input id="h-apelidos" type="text" value="${esc((h.apelidos || []).join(', '))}"><span class="dica">Separados por vírgula. Ex.: treinei, academia, malhei</span></div>
+    <form class="conteudo" style="display:flex;flex-direction:column;gap:16px">
+      <div class="campo"><label for="h-nome">Nome</label><input id="h-nome" type="text" required maxlength="40" value="${esc(h.nome)}" placeholder="Ex.: Alongar"></div>
+      <div class="campo"><span class="rot">Ícone</span>${gradeEmojis('emoji', EMOJIS_ROTINA, h.emoji)}</div>
+      <div class="campo"><span class="rot">De quem</span>${quemOp('membro', membrosEmOrdem(), h.membro, { comCasa: false })}</div>
+      <div class="campo"><span class="rot">Como conta</span>${opcoes('tipo', CARTOES_TIPO.map(([k, ic, t, ex]) => [k, `<span class="ic">${ic}</span><b>${t}</b><small>${ex}</small>`]), h.tipo, { classe: 'cartoes' })}</div>
+      <div class="campo" data-so="qtd"><span class="rot">Unidade</span>${opcoes('unidade', Object.keys(UNIDADES).map((u) => [u, u]), un)}
+        <span class="rot">Meta por dia</span>${contador('meta', h.meta ?? UNIDADES[un][0], { passo: UNIDADES[un][2], min: 1, unidade: un })}
+        <span class="rot">Cada toque soma</span>${contador('passo', h.passo ?? UNIDADES[un][1], { passo: UNIDADES[un][2], min: 1, unidade: un })}</div>
+      <div class="campo" data-so="semana"><span class="rot">Vezes por semana</span>${opcoes('vezes', [1, 2, 3, 4, 5, 6, 7].map((n) => [n, `${n}x`]), h.vezes_semana ?? 3)}</div>
+      <details class="campo"><summary class="rot">Palavras para a voz (opcional)</summary>
+        <input id="h-apelidos" type="text" value="${esc((h.apelidos || []).join(', '))}" placeholder="treinei, academia, malhei"><span class="dica">Separadas por vírgula.</span></details>
       <button type="submit" class="botao">Salvar</button>
       ${id ? `<button type="button" class="botao ${h.arquivado ? 'sec' : 'perigo'}" data-arquivar>${h.arquivado ? 'Voltar para o painel' : 'Arquivar'}</button>` : ''}
     </form>`, (el, fechar) => {
     const f = $('form', el);
-    const ajustar = () => { const t = $('#h-tipo', f).value; $$('[data-so]', f).forEach((x) => { x.hidden = x.dataset.so !== t; }); };
+    const ajustar = () => { const t = valor(f, 'tipo'); $$('[data-so]', f).forEach((x) => { x.hidden = x.dataset.so !== t; }); };
     ajustar();
-    $('#h-tipo', f).addEventListener('change', ajustar);
+    ligarEntradas(f, (nome, v) => {
+      if (nome === 'tipo') ajustar();
+      if (nome === 'unidade') {
+        const [meta, passo, pc] = UNIDADES[v];
+        definirContador(f, 'meta', meta, { passo: pc, unidade: v });
+        definirContador(f, 'passo', passo, { passo: pc, unidade: v });
+      }
+    });
     f.addEventListener('submit', (e) => {
       e.preventDefault();
-      const tipo = $('#h-tipo', f).value;
+      const tipo = valor(f, 'tipo');
       const novo = {
-        ...(id ? { id } : {}), nome: $('#h-nome', f).value.trim(), emoji: $('#h-emoji', f).value.trim(), membro: $('#h-membro', f).value, tipo,
+        ...(id ? { id } : {}), nome: $('#h-nome', f).value.trim(), emoji: valor(f, 'emoji'), membro: valor(f, 'membro'), tipo,
         apelidos: $('#h-apelidos', f).value.split(',').map((x) => normalizar(x)).filter(Boolean),
       };
-      if (tipo === 'qtd') Object.assign(novo, { meta: Number($('#h-meta', f).value) || 1, unidade: $('#h-unidade', f).value.trim(), passo: Number($('#h-passo', f).value) || 1 });
-      if (tipo === 'semana') novo.vezes_semana = Math.min(7, Math.max(1, Number($('#h-vezes', f).value) || 1));
+      if (tipo === 'qtd') Object.assign(novo, { meta: Number(valor(f, 'meta')), unidade: valor(f, 'unidade'), passo: Number(valor(f, 'passo')) });
+      if (tipo === 'semana') novo.vezes_semana = Number(valor(f, 'vezes'));
       if (agir('habito.salvar', { habito: novo })) fechar();
     });
     $('[data-arquivar]', f)?.addEventListener('click', () => { agir('habito.arquivar', { id, arquivado: !h.arquivado }); fechar(); });
@@ -420,7 +439,7 @@ function renderMercado(el) {
   const editar = el.dataset.editar === '1';
   const soCarrinho = el.dataset.carrinho === '1';
   if (!el.dataset.pronto) {
-    el.innerHTML = `<header><h2>${soCarrinho ? 'No carrinho' : 'Mercado'}</h2><span class="muted num cont"></span></header>
+    el.innerHTML = `<header><h2>${soCarrinho ? 'No carrinho' : 'Mercado'}</h2><span class="muted num cont"></span>${soCarrinho ? '' : '<button type="button" class="chip" data-a="mercado-rapido" aria-label="Escolher itens por toque">＋ Itens</button>'}</header>
       ${el.dataset.semcampo || soCarrinho ? '' : `<form class="anotar" data-form="mercado"><input name="texto" list="catalogo-lista" autocomplete="off" enterkeyhint="done" placeholder="leite, pão e 2 dúzias de ovos" aria-label="Adicionar itens ao mercado"><button type="submit">Adicionar</button></form>`}
       <div class="chips"></div><div class="lista"></div><div class="carrinho"></div>`;
     el.dataset.pronto = '1';
@@ -453,21 +472,75 @@ function renderMercado(el) {
 function editarItem(id) {
   const i = vista.mercado.find((x) => x.id === id);
   if (!i) return;
-  sheet(`<h2>${esc(i.nome)}</h2><form class="conteudo" style="display:flex;flex-direction:column;gap:14px">
-    <div class="grade2"><div class="campo"><label for="i-nome">Nome</label><input id="i-nome" type="text" value="${esc(i.nome)}"></div>
-    <div class="campo"><label for="i-qtd">Quantidade</label><input id="i-qtd" type="text" value="${esc(i.qtd)}"></div></div>
-    <div class="campo"><label for="i-secao">Seção</label><select id="i-secao">${vista.secoes.map((s) => `<option ${s === i.secao ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+  const QTDS = ['1', '2', '3', '4', '6', '12', '500 g', '1 kg', '2 kg', '1 L', '1 dúzia', '2 dúzias'];
+  sheet(`<h2>${esc(i.nome)}</h2><form class="conteudo" style="display:flex;flex-direction:column;gap:16px">
+    <div class="campo"><span class="rot">Quantidade</span>${opcoes('qtd', [['', 'Qualquer'], ...QTDS.map((q) => [q, q]), ...(i.qtd && !QTDS.includes(i.qtd) ? [[i.qtd, esc(i.qtd)]] : [])], i.qtd || '')}</div>
+    <div class="campo"><span class="rot">Seção</span>${opcoes('secao', vista.secoes.map((s) => [s, esc(s)]), i.secao)}
     <span class="dica">Mudar a seção ensina o app: da próxima vez, ${esc(i.nome.toLowerCase())} já cai aqui.</span></div>
+    <details class="campo"><summary class="rot">Renomear</summary><input id="i-nome" type="text" value="${esc(i.nome)}"></details>
     <p class="dica">Adicionado por ${esc(membro(i.adicionado_por)?.nome || 'painel da casa')} · ${new Date(i.em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</p>
-    <button type="submit" class="botao">Salvar</button><button type="button" class="botao perigo" data-remover>Remover da lista</button></form>`, (el, fechar) => {
+    <button type="submit" class="botao">Salvar</button><button type="button" class="botao perigo" data-remover>Tirar da lista</button></form>`, (el, fechar) => {
     const f = $('form', el);
+    ligarEntradas(f);
     f.addEventListener('submit', (e) => {
       e.preventDefault();
-      const campos = { id, nome: $('#i-nome', f).value, qtd: $('#i-qtd', f).value };
-      if ($('#i-secao', f).value !== i.secao) campos.secao = $('#i-secao', f).value;
+      const campos = { id, nome: $('#i-nome', f).value, qtd: valor(f, 'qtd') };
+      if (valor(f, 'secao') !== i.secao) campos.secao = valor(f, 'secao');
       if (agir('mercado.editar', campos)) fechar();
     });
     $('[data-remover]', f).addEventListener('click', () => { agir('mercado.remover', { id }); fechar(); });
+  });
+}
+
+// Sugestões por seção para a grade de toque (somam com o que a casa já comprou antes).
+const SUGESTOES = {
+  'Hortifrúti': ['Banana', 'Maçã', 'Tomate', 'Cebola', 'Alho', 'Batata', 'Alface', 'Limão', 'Abacate', 'Cenoura'],
+  'Padaria': ['Pão francês', 'Pão de forma', 'Bisnaguinha'],
+  'Açougue': ['Frango', 'Carne moída', 'Peixe'],
+  'Frios e laticínios': ['Leite', 'Ovos', 'Queijo', 'Iogurte', 'Manteiga', 'Presunto'],
+  'Mercearia': ['Arroz', 'Feijão', 'Café', 'Açúcar', 'Macarrão', 'Azeite', 'Aveia', 'Molho de tomate'],
+  'Bebidas': ['Água com gás', 'Suco', 'Cerveja'],
+  'Limpeza': ['Detergente', 'Sabão em pó', 'Amaciante', 'Esponja', 'Saco de lixo'],
+  'Higiene': ['Papel higiênico', 'Sabonete', 'Pasta de dente', 'Shampoo'],
+  'Pet': ['Ração', 'Petisco', 'Tapete higiênico'],
+  'Outros': [],
+};
+/**
+ * Mercado por toque: tudo o que a casa costuma comprar, por seção. Tocar põe na lista (fica
+ * aceso); tocar de novo tira. Para o que não está aqui, um campo "Outro" no fim.
+ */
+function mercadoRapido() {
+  const desenhar = (c) => {
+    const naLista = new Map(vista.mercado.filter((i) => !i.comprado_em).map((i) => [i.nome_norm, i]));
+    const porSecao = new Map(vista.secoes.map((s) => [s, new Map()]));
+    for (const [s, nomes] of Object.entries(SUGESTOES)) for (const n of nomes) porSecao.get(s)?.set(normalizar(n), n);
+    for (const [nn, cat] of Object.entries(vista.catalogo || {})) (porSecao.get(cat.secao) || porSecao.get('Outros'))?.set(nn, cat.nome);
+    for (const i of naLista.values()) (porSecao.get(i.secao) || porSecao.get('Outros'))?.set(i.nome_norm, i.nome);
+    c.innerHTML = `<h2>Mercado</h2><p class="dica">Toque no que está faltando. Aceso = na lista. Toque de novo para tirar.</p>
+      ${[...porSecao].filter(([, m]) => m.size).map(([s, m]) => `<div class="sec">${esc(s)}</div><div class="chips toque">${[...m].sort((a, b) => a[1].localeCompare(b[1], 'pt-BR')).map(([nn, nome]) => {
+        const it = naLista.get(nn);
+        return `<button type="button" class="chip ${it ? 'on' : ''}" data-rapido="${esc(nome)}" ${it ? `data-rapido-id="${esc(it.id)}"` : ''} aria-pressed="${Boolean(it)}">${it ? '✓ ' : ''}${esc(nome)}</button>`;
+      }).join('')}</div>`).join('')}
+      <form class="anotar" data-rapido-outro style="margin-top:8px"><input name="texto" list="catalogo-lista" autocomplete="off" placeholder="Outro item…" aria-label="Outro item"><button type="submit">+</button></form>`;
+  };
+  sheet('<div class="conteudo" style="display:flex;flex-direction:column;gap:10px"></div>', (s) => {
+    const c = $('.conteudo', s);
+    desenhar(c);
+    c.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-rapido]');
+      if (!b) return;
+      if (b.dataset.rapidoId) agir('mercado.remover', { id: b.dataset.rapidoId }, { silencioso: true });
+      else agir('mercado.adicionar', { texto: b.dataset.rapido }, { silencioso: true });
+      desenhar(c);
+    });
+    c.addEventListener('submit', (e) => {
+      if (!e.target.closest('[data-rapido-outro]')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const t = e.target.texto.value.trim();
+      if (t) agir('mercado.adicionar', { texto: t });
+      desenhar(c);
+    });
   });
 }
 
@@ -492,11 +565,8 @@ function pendRow(p) {
 function renderPend(el) {
   const lim = Number(el.dataset.limite) || 999;
   if (!el.dataset.pronto) {
-    const opcoes = () => `<option value="">Casa</option>${vista.membros.map((m) => `<option value="${esc(m.id)}">${esc(m.emoji)} ${esc(m.nome)}</option>`).join('')}`;
-    el.innerHTML = `<header><h2>Pendências</h2><span class="muted cont"></span></header>
-      ${el.dataset.form === '1' ? `<form class="conteudo" data-form="pendencia" style="display:flex;flex-direction:column;gap:8px">
-        <div class="anotar"><input name="titulo" autocomplete="off" enterkeyhint="done" placeholder="Nova pendência" aria-label="Nova pendência"><button type="submit">Anotar</button></div>
-        <div class="grade2"><select name="resp" aria-label="Responsável" class="sel">${opcoes()}</select><input name="prazo" type="date" aria-label="Prazo" class="sel"></div></form>` : ''}
+    el.innerHTML = `<header><h2>Pendências</h2><span class="muted cont"></span>${el.closest('.painel') ? '<button type="button" class="chip" data-a="nova-pendencia" aria-label="Nova pendência">＋</button>' : ''}</header>
+      ${el.dataset.form === '1' ? '<button type="button" class="botao" data-a="nova-pendencia">＋ Nova pendência</button>' : ''}
       <div class="lista"></div>`;
     el.dataset.pronto = '1';
   }
@@ -530,28 +600,66 @@ function caber(lista, total, rotulo, acao) {
   let n = itens.length;
   do { itens[--n]?.remove(); mais.textContent = `+${total - n} ${rotulo}`; } while (n > 0 && passa());
 }
+/** Formulário de pendência por toque: o título é o único texto; quem e quando são chips. */
+function formPendencia(p = null) {
+  return `<div class="campo"><label for="p-titulo">O que precisa ser feito</label><input id="p-titulo" type="text" required maxlength="80" enterkeyhint="done" value="${esc(p?.titulo || '')}" placeholder="Ex.: Pagar a conta de luz"></div>
+    <div class="campo"><span class="rot">Quem</span>${quemOp('resp', membrosEmOrdem(), p?.resp ?? '')}</div>
+    <div class="campo"><span class="rot">Quando</span>${prazos('prazo', hoje(), p?.prazo ?? '')}</div>
+    <details class="campo" ${p?.nota ? 'open' : ''}><summary class="rot">Nota (opcional)</summary><input id="p-nota" type="text" maxlength="140" value="${esc(p?.nota || '')}"></details>`;
+}
+function lerPendencia(f) {
+  const t = $('#p-titulo', f).value.trim();
+  return { titulo: t.charAt(0).toUpperCase() + t.slice(1), resp: valor(f, 'resp') || null, prazo: valor(f, 'prazo') || null, nota: $('#p-nota', f).value };
+}
+function novaPendencia() {
+  sheet(`<h2>Nova pendência</h2><form class="conteudo" style="display:flex;flex-direction:column;gap:16px">${formPendencia()}<button type="submit" class="botao">Anotar</button></form>`, (el, fechar) => {
+    const f = $('form', el);
+    ligarEntradas(f);
+    setTimeout(() => $('#p-titulo', f).focus(), 150);
+    f.addEventListener('submit', (e) => { e.preventDefault(); if (agir('pendencia.criar', lerPendencia(f))) fechar(); });
+  });
+}
 function editarPend(id) {
   const p = vista.pendencias.find((x) => x.id === id);
   if (!p) return;
-  sheet(`<h2>Pendência</h2><form class="conteudo" style="display:flex;flex-direction:column;gap:14px">
-    <div class="campo"><label for="p-titulo">Título</label><input id="p-titulo" type="text" required value="${esc(p.titulo)}"></div>
-    <div class="grade2"><div class="campo"><label for="p-resp">Responsável</label><select id="p-resp"><option value="">Casa</option>${vista.membros.map((m) => `<option value="${esc(m.id)}" ${m.id === p.resp ? 'selected' : ''}>${esc(m.emoji)} ${esc(m.nome)}</option>`).join('')}</select></div>
-    <div class="campo"><label for="p-prazo">Prazo</label><input id="p-prazo" type="date" value="${esc(p.prazo || '')}"></div></div>
-    <div class="campo"><label for="p-nota">Nota</label><input id="p-nota" type="text" maxlength="140" value="${esc(p.nota || '')}"></div>
-    <button type="submit" class="botao">Salvar</button><button type="button" class="botao sec" data-ok>Concluir</button><button type="button" class="botao perigo" data-remover>Remover</button></form>`, (el, fechar) => {
+  sheet(`<h2>Pendência</h2><form class="conteudo" style="display:flex;flex-direction:column;gap:16px">${formPendencia(p)}
+    <button type="submit" class="botao">Salvar</button><button type="button" class="botao sec" data-ok>✓ Concluir</button><button type="button" class="botao perigo" data-remover>Remover</button></form>`, (el, fechar) => {
     const f = $('form', el);
-    f.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (agir('pendencia.editar', { id, titulo: $('#p-titulo', f).value.trim(), resp: $('#p-resp', f).value || null, prazo: $('#p-prazo', f).value || null, nota: $('#p-nota', f).value })) fechar();
-    });
+    ligarEntradas(f);
+    f.addEventListener('submit', (e) => { e.preventDefault(); if (agir('pendencia.editar', { id, ...lerPendencia(f) })) fechar(); });
     $('[data-ok]', f).addEventListener('click', () => { agir('pendencia.concluir', { id }); fechar(); });
     $('[data-remover]', f).addEventListener('click', () => { agir('pendencia.remover', { id }); fechar(); });
   });
 }
 
+/** O "+" do painel e do celular: blocos grandes para as entradas mais comuns. */
+function adicionarRapido() {
+  const ps = pessoas();
+  sheet(`<h2>Adicionar</h2>
+    <div class="rapido">
+      <button type="button" data-rap="mercado"><span>🛒</span><b>Mercado</b><small>tocar no que falta</small></button>
+      <button type="button" data-rap="pendencia"><span>✓</span><b>Pendência</b><small>o que precisa ser feito</small></button>
+      ${ps.map((p) => `<button type="button" data-rap="dia" data-quem="${esc(p.id)}"><span>${esc(p.emoji)}</span><b>Dia de ${esc(p.nome)}</b><small>humor, energia, rotina</small></button>`).join('')}
+      <button type="button" data-rap="rotina"><span>🌱</span><b>Nova rotina</b><small>para alguém da casa</small></button>
+    </div>
+    <p class="dica">Prefere falar? Toque em “Anotar” e use o 🎤 do teclado: “leite e pão”, “treinei”, “pendência: IPTU até sexta”.</p>`, (el, fechar) => {
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-rap]');
+      if (!b) return;
+      fechar();
+      const r = b.dataset.rap;
+      if (r === 'mercado') mercadoRapido();
+      else if (r === 'pendencia') novaPendencia();
+      else if (r === 'dia') pessoaMenu(b.dataset.quem);
+      else editarHab(null);
+    });
+  });
+}
+
 // ---------------------------------------------------------------- registro do dia
 function escala(rot, v) {
-  return `<div class="escala"><span>${rot}</span><span class="p">${[1, 2, 3, 4, 5].map((n) => `<i class="${v && n <= v ? 'on' : ''}"></i>`).join('')}</span></div>`;
+  const ic = (rot === 'Energia' ? CARAS_ENERGIA : CARAS_HUMOR)[(v || 0) - 1];
+  return `<div class="escala"><span>${rot}</span>${ic ? `<span class="cara">${ic}</span>` : ''}<span class="p">${[1, 2, 3, 4, 5].map((n) => `<i class="${v && n <= v ? 'on' : ''}"></i>`).join('')}</span></div>`;
 }
 function renderRegistro(el) {
   const ids = el.dataset.pessoa ? [el.dataset.pessoa] : pessoas().map((p) => p.id);
@@ -563,9 +671,7 @@ function renderRegistro(el) {
       ${vazio ? '<span class="vazio">Sem registro hoje · toque para registrar</span>' : escala('Humor', r.humor) + escala('Energia', r.energia) + (r.destaque ? `<span class="destaque">“${esc(r.destaque)}”</span>` : '')}</button>`;
   }).join('');
 }
-function gradeEscala(campo, v) {
-  return `<div class="escolha" data-campo="${campo}">${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="${v === n ? 'on' : ''}" data-v="${n}" aria-label="${campo} ${n}">${n}</button>`).join('')}</div>`;
-}
+function gradeEscala(campo, v) { return caras(campo, v); }
 /** Editor do registro público (humor, energia, destaque). No painel, qualquer pessoa da casa. */
 function editarReg(id, dia = hoje()) {
   const p = membro(id);
@@ -760,7 +866,7 @@ function telaCheia() {
   const p = (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
   p?.catch?.(() => toast('Este aparelho não deixou entrar em tela cheia.'));
 }
-const botoesTopo = () => `<div class="acoes">${podeTelaCheia() ? '<button type="button" class="icone" data-a="tela-cheia" aria-label="Tela cheia">⛶</button>' : ''}<button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${prefs.tema === 'light' ? '☀' : '☾'}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
+const botoesTopo = () => `<div class="acoes"><button type="button" class="icone mais-rapido" data-a="adicionar" aria-label="Adicionar">＋</button>${podeTelaCheia() ? '<button type="button" class="icone" data-a="tela-cheia" aria-label="Tela cheia">⛶</button>' : ''}<button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${prefs.tema === 'light' ? '☀' : '☾'}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
 
 function layoutPainel() {
   const grupo = (lado, dono) => `<div class="grupo"><div class="lado">${lado}</div><div class="fila" data-mod="habitos" data-dono="${esc(dono)}" data-rotulos="0"></div></div>`;
@@ -779,7 +885,7 @@ function layoutPainel() {
 
 const ABAS = [['hoje', '☀', 'Hoje'], ['mercado', '🛒', 'Mercado'], ['pendencias', '✓', 'Pendências'], ['registro', '✎', 'Registro']];
 function layoutCelular() {
-  return `<div class="cel"><header class="cabeca"><h1 id="titulo-aba"></h1><div class="acoes"><span data-mod="sync"></span><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div></header>
+  return `<div class="cel"><header class="cabeca"><h1 id="titulo-aba"></h1><div class="acoes"><span data-mod="sync"></span><button type="button" class="icone mais-rapido" data-a="adicionar" aria-label="Adicionar">＋</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div></header>
     <main id="aba"></main>
     <nav class="abas" aria-label="Seções">${ABAS.map(([id, ic, rot]) => `<button type="button" data-aba="${id}"><span aria-hidden="true">${ic}</span>${rot}</button>`).join('')}</nav></div>`;
 }
@@ -837,6 +943,28 @@ function montarRegistroCel(m, minha) {
 }
 
 // ---------------------------------------------------------------- ajustes
+/** Pessoa ou bicho: emoji e cor por toque; o nome fica guardado atrás de "Renomear". */
+function editarMembro(id) {
+  const m = membro(id);
+  if (!m) return;
+  sheet(`<div class="quem" style="--cor:${esc(m.cor)}" id="mb-previa"><div class="av">${esc(m.emoji)}</div><strong>${esc(m.nome)}</strong></div>
+    <form class="conteudo" style="display:flex;flex-direction:column;gap:16px">
+      <div class="campo"><span class="rot">Emoji</span>${gradeEmojis('emoji', EMOJIS_PESSOA, m.emoji)}</div>
+      <div class="campo"><span class="rot">Cor</span>${paleta('cor', m.cor)}</div>
+      <details class="campo"><summary class="rot">Renomear</summary><input id="mb-nome" type="text" maxlength="30" value="${esc(m.nome)}"></details>
+      <button type="submit" class="botao">Salvar</button></form>`, (el, fechar) => {
+    const f = $('form', el);
+    const previa = $('#mb-previa', el);
+    ligarEntradas(f, (nome, v) => {
+      if (nome === 'emoji') $('.av', previa).textContent = v;
+      if (nome === 'cor') previa.style.setProperty('--cor', v);
+    });
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (agir('membro.salvar', { id, nome: $('#mb-nome', f).value, emoji: valor(f, 'emoji'), cor: valor(f, 'cor') })) { fechar(); modoAtual = null; montar(); }
+    });
+  });
+}
 function ajustes() {
   const sou = eu === 'casa' ? 'Painel da casa' : membro(eu)?.nome || eu;
   const temExemplos = vista.habitos.some((h) => h.exemplo) || vista.eventos.some((e) => e.origem === 'exemplo') || vista.mercado.some((i) => i.origem === 'exemplo') || vista.pendencias.some((p) => p.origem === 'exemplo');
@@ -854,11 +982,9 @@ function ajustes() {
         <span><b>${esc(h.nome)}</b><br><small class="muted">${esc(membro(h.membro)?.nome || '')} · ${TIPOS_HAB[h.tipo]}${h.arquivado ? ' · arquivado' : ''}</small></span>
         <button type="button" class="chip" data-editar-hab="${esc(h.id)}">Editar</button></div>`).join('')}</div>
     <div class="ajuste"><span class="rot">Pessoas e bichos</span>
-      ${vista.membros.map((m) => `<form class="grade2" data-membro="${esc(m.id)}" style="grid-template-columns:64px 1fr 64px auto;align-items:center">
-        <input type="text" name="emoji" maxlength="4" value="${esc(m.emoji)}" aria-label="Emoji de ${esc(m.nome)}" style="min-height:48px;border-radius:12px;border:2px solid var(--line);background:var(--surface-2);text-align:center">
-        <input type="text" name="nome" maxlength="30" value="${esc(m.nome)}" aria-label="Nome" style="min-height:48px;border-radius:12px;border:2px solid var(--line);background:var(--surface-2);padding:0 12px">
-        <input type="color" name="cor" value="${esc(m.cor)}" aria-label="Cor de ${esc(m.nome)}" style="min-height:48px;width:64px;border:0;background:none">
-        <button type="submit" class="chip">Salvar</button></form>`).join('')}</div>
+      ${membrosEmOrdem().map((m) => `<div class="linha-hab"><div class="quem" style="--cor:${esc(m.cor)}"><div class="av">${esc(m.emoji)}</div></div>
+        <span><b>${esc(m.nome)}</b><br><small class="muted">${m.tipo === 'pet' ? 'cachorro' : 'pessoa'}</small></span>
+        <button type="button" class="chip" data-editar-membro="${esc(m.id)}">Editar</button></div>`).join('')}</div>
     <div class="ajuste"><span class="rot">Ordem das seções do mercado</span><span class="dica">A ordem do corredor do seu mercado.</span>
       ${vista.secoes.map((s, i) => `<div class="linha" style="align-items:center"><span>${esc(s)}</span><span class="opcoes"><button type="button" data-sec="${i}" data-dir="-1" aria-label="Subir ${esc(s)}" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-sec="${i}" data-dir="1" aria-label="Descer ${esc(s)}" ${i === vista.secoes.length - 1 ? 'disabled' : ''}>↓</button></span></div>`).join('')}</div>
     <div class="ajuste"><span class="rot">Dados de exemplo</span><span class="dica">Para ver como o painel fica com o tempo: 90 dias de hábitos, humor e destaques, mais rotinas, mercado e pendências. Tudo marcado como exemplo; o que é de vocês não é tocado.</span><div class="opcoes"><button type="button" data-exemplos-gerar>Gerar 90 dias de exemplo</button>${temExemplos ? '<button type="button" data-exemplos>Remover exemplos</button>' : ''}</div></div>
@@ -883,6 +1009,8 @@ function ajustes() {
         return;
       }
       if (e.target.closest('[data-novo-hab]')) { fechar(); return editarHab(null); }
+      const em = e.target.closest('[data-editar-membro]');
+      if (em) { fechar(); return editarMembro(em.dataset.editarMembro); }
       const eh = e.target.closest('[data-editar-hab]');
       if (eh) { fechar(); return editarHab(eh.dataset.editarHab); }
       const sec = e.target.closest('[data-sec]');
@@ -941,6 +1069,7 @@ function descansar() {
 function trocarQuadro() {
   const d = $('.descanso');
   if (!d || !fotos.length) return;
+  if (!d.classList.contains('com-fotos')) { d.classList.add('com-fotos'); $('.dorme', d).style.transform = ''; }
   const [a, b] = $$('.quadro img', d);
   const atual = a.classList.contains('on') ? a : b;
   const prox = atual === a ? b : a;
@@ -1061,6 +1190,9 @@ document.addEventListener('click', (e) => {
   const a = t.closest('[data-a]')?.dataset.a;
   if (a === 'tema') { prefs.tema = prefs.tema === 'light' ? 'dark' : 'light'; salvarPrefs(); aplicarTema(); return; }
   if (a === 'ajustes') return ajustes();
+  if (a === 'adicionar') return adicionarRapido();
+  if (a === 'mercado-rapido') return mercadoRapido();
+  if (a === 'nova-pendencia') return novaPendencia();
   if (a === 'tela-cheia') return telaCheia();
   if (a === 'limpar') return agir('mercado.limpar');
   if (a === 'foto') { proximaFoto(); reiniciarFotos(); return; }

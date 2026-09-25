@@ -91,6 +91,14 @@ Uma ou duas linhas por decisão: o quê e por quê. As mais novas ficam embaixo.
   mercado e pendências, tudo marcado como exemplo. É determinístico e removível, e não toca no que
   é real.
 
+- **D34. Entradas por toque, texto só onde ele é o conteúdo** (`web/entradas.js`): botão ＋ com blocos
+  grandes (Mercado, Pendência, Dia de cada pessoa, Nova rotina); mercado numa grade por seção
+  (acende = na lista); pendência com quem por avatar e prazo por chips (Hoje, Amanhã, Sexta, Próx.
+  semana, 📅); rotina com grade de ícones, 4 cartões de tipo, contador − + e unidade em chips;
+  humor e energia em carinhas; pessoas com grade de emojis e paleta da natureza. O que continua
+  digitado: nome da pendência e da rotina, destaque, gratidão, diário e a barra "Anotar" (que aceita
+  o 🎤 do teclado).
+
 ## Limites gratuitos (conferidos em 25/09/2026)
 
 - **Vercel Hobby:** grátis, só para uso pessoal e não comercial, o que serve para a casa. Quem passa do
