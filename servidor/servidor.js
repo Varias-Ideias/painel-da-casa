@@ -10,6 +10,8 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { abrir } from './armazenamento.js';
+import { enviarBackup } from './backup-git.js';
+import { criarFotos } from './fotos.js';
 import { aplicar, filtrarPara, ErroAcao } from '../src/dominio/acoes.js';
 import { hojeNoFuso } from '../src/dominio/datas.js';
 
@@ -24,9 +26,16 @@ function lerConfig(dados) {
   try { return JSON.parse(fs.readFileSync(path.join(dados, 'config.json'), 'utf8')); } catch { return {}; }
 }
 
-export function criarServidor({ dados = DADOS, silencioso = false, ips = null, backupExtra } = {}) {
+export function criarServidor({ dados = DADOS, silencioso = false, ips = null, backupExtra, baixarFotos } = {}) {
   const config = lerConfig(dados);
-  const banco = abrir(dados, { backupExtra: backupExtra !== undefined ? backupExtra : config.backup_extra || null });
+  const aoBackup = (arquivo, nome) => {
+    const c = lerConfig(dados);
+    enviarBackup({ arquivo, nome, pasta: c.backup_git, senha: c.backup_senha })
+      .then((r) => { if (r === 'enviado' && !silencioso) console.log(`Backup cifrado enviado: ${nome}.enc`); })
+      .catch((e) => console.error('Aviso: backup cifrado não foi:', e.message));
+  };
+  const banco = abrir(dados, { backupExtra: backupExtra !== undefined ? backupExtra : config.backup_extra || null, aoBackup });
+  const fotos = criarFotos({ dados, config: () => lerConfig(dados), ...(baixarFotos ? { baixar: baixarFotos } : {}) });
   const ouvintes = new Set();
   const limites = new Map(); // quem → [instantes] para o rate limit da captura
 
@@ -95,7 +104,7 @@ export function criarServidor({ dados = DADOS, silencioso = false, ips = null, b
     });
   }
 
-  const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
+  const TIPOS = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
   function servirArquivo(res, base, rel) {
     const alvo = path.resolve(base, '.' + path.posix.normalize('/' + rel));
     if (!alvo.startsWith(base + path.sep) && alvo !== base) return json(res, 403, { erro: 'Proibido' });
@@ -160,7 +169,16 @@ export function criarServidor({ dados = DADOS, silencioso = false, ips = null, b
             throw err;
           }
         }
+        if (url.pathname === '/api/fotos' && req.method === 'GET') {
+          return json(res, 200, { fotos: await fotos.listar() });
+        }
         return json(res, 404, { erro: 'Rota desconhecida' });
+      }
+
+      // fotos da pasta dados/fotos/ (precisam do token na URL: <img> não manda header)
+      if (url.pathname.startsWith('/fotos-locais/')) {
+        if (!banco.quemPeloToken(token)) return json(res, 401, { erro: 'Aparelho não pareado' });
+        return servirArquivo(res, fotos.pastaLocal, decodeURIComponent(url.pathname.slice('/fotos-locais/'.length)));
       }
 
       // ---------- pareamento: QR codes dos links, SÓ para quem está no próprio computador ----------

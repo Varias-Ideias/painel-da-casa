@@ -9,7 +9,9 @@
     "portoes": "portao-contexto",
     "unit": "node --test \"test/unit/*.test.js\"",
     "integracao": "node --test \"test/integracao/*.test.js\"",
-    "test": "portao-contexto && node --test \"test/unit/*.test.js\" \"test/integracao/*.test.js\""
+    "test": "portao-contexto && node --test \"test/unit/*.test.js\" \"test/integracao/*.test.js\"",
+    "senha-backup": "node servidor/senha-backup.js",
+    "restaurar": "node servidor/restaurar.js"
   },
   "engines": {
     "node": ">=20"

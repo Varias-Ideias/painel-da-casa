@@ -17,6 +17,7 @@ const novoToken = () => crypto.randomBytes(24).toString('base64url');
 export function abrir(dir, op = {}) {
   fs.mkdirSync(path.join(dir, 'backup'), { recursive: true });
   const extra = op.backupExtra || null;
+  const aoBackup = op.aoBackup || null; // ex.: enviar o backup cifrado para o git
   const arquivo = path.join(dir, 'casa.json');
   let estado;
   /** tokens em texto puro só existem na primeira criação; vão para links.txt (fora do git) */
@@ -49,6 +50,7 @@ export function abrir(dir, op = {}) {
   }
   /** Cópia do backup do dia na pasta extra. Se falhar (OneDrive fora, disco cheio), avisa e segue. */
   function copiarExtra(b, nome) {
+    if (aoBackup) aoBackup(b, nome);
     if (!extra) return;
     const alvo = path.join(extra, nome);
     if (fs.existsSync(alvo)) return;
