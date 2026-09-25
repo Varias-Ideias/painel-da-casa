@@ -42,11 +42,11 @@ test('mercado: item comprado volta para a lista em vez de duplicar', () => {
 
 test('mercado: mover de seção ensina a próxima vez', () => {
   const { estado, fazer } = novo();
-  fazer('mercado.adicionar', { texto: 'tapioca' });
+  fazer('mercado.adicionar', { texto: 'kimchi' });
   assert.equal(estado.mercado[0].secao, 'Outros');
   fazer('mercado.editar', { id: estado.mercado[0].id, secao: 'Mercearia' });
   fazer('mercado.remover', { id: estado.mercado[0].id });
-  fazer('mercado.adicionar', { texto: 'Tapioca' });
+  fazer('mercado.adicionar', { texto: 'Kimchi' });
   assert.equal(estado.mercado[0].secao, 'Mercearia');
 });
 
@@ -200,6 +200,64 @@ test('exemplos ricos: iguais no aparelho e no servidor, 90 dias, sem tocar no qu
   assert.deepEqual(a.estado.eventos.map((e) => e.habito), ['meditar']);
   assert.deepEqual(a.estado.mercado.map((i) => i.nome), ['Tapioca']);
   assert.equal(Object.values(a.estado.registro.k).filter((r) => r.exemplo).length, 0);
+});
+
+test('destaque do dia é privado: vai para o privado e o painel da casa não vê', () => {
+  const { estado, fazer } = novo('k');
+  fazer('privado.salvar', { campos: { destaque: 'Plantei manjericão' } });
+  fazer('registro.salvar', { campos: { humor: 4 } });
+  assert.equal(estado.privado.k[HOJE].destaque, 'Plantei manjericão');
+  assert.equal(estado.registro.k[HOJE].destaque, undefined);
+  assert.deepEqual(filtrarPara(estado, 'casa').privado, {});
+  assert.deepEqual(filtrarPara(estado, 'm').privado, {});
+  // cliente antigo mandando destaque pelo registro: vai para o privado mesmo assim
+  fazer('registro.salvar', { campos: { destaque: 'Pão caseiro deu certo' } });
+  assert.equal(estado.privado.k[HOJE].destaque, 'Pão caseiro deu certo');
+  assert.equal(estado.registro.k[HOJE].destaque, undefined);
+  // por voz: substitui, não acumula
+  fazer('captura', { texto: 'destaque do dia: caminhada no parque' });
+  assert.equal(estado.privado.k[HOJE].destaque, 'caminhada no parque');
+});
+
+test('aniversário: repete todo ano; concluir empurra para o ano que vem; desfazer volta', async () => {
+  const { estado, fazer } = novo('k');
+  fazer('pendencia.criar', { titulo: 'Aniversário da Ju', prazo: '2026-10-10', repete: 'anual', aviso_dias: 14, icone: '🎂' });
+  const p = estado.pendencias[0];
+  const r = fazer('pendencia.concluir', { id: p.id });
+  assert.equal(p.prazo, '2027-10-10');
+  assert.equal(p.concluida_em, null, 'não some: volta no ano seguinte');
+  assert.match(r.fala, /volta em 10\/10\/2027/);
+  fazer(r.desfazer.tipo, r.desfazer.dados);
+  assert.equal(p.prazo, '2026-10-10');
+  assert.throws(() => fazer('pendencia.criar', { titulo: 'X', repete: 'anual' }), /precisa de dia/);
+});
+
+test('aviso: a pendência só aparece N dias antes; sem aviso aparece sempre', async () => {
+  const { pendenciaVisivel, proximoAno } = await import('../../src/dominio/acoes.js');
+  const niver = { prazo: '2026-10-10', aviso_dias: 14 };
+  assert.equal(pendenciaVisivel(niver, '2026-09-24'), false, '16 dias antes: ainda escondido');
+  assert.equal(pendenciaVisivel(niver, '2026-09-26'), true, '14 dias antes: aparece');
+  assert.equal(pendenciaVisivel({ prazo: '2027-01-01' }, HOJE), true);
+  assert.equal(pendenciaVisivel({ prazo: null, aviso_dias: 3 }, HOJE), true);
+  assert.equal(pendenciaVisivel({ prazo: HOJE, concluida_em: 'x' }, HOJE), false);
+  assert.equal(proximoAno('2028-02-29'), '2029-02-28');
+  assert.equal(proximoAno('2027-02-28'), '2028-02-28');
+});
+
+test('teste de estresse: muito de tudo, e remover limpa tudo (inclusive privado de exemplo)', () => {
+  const { estado, fazer } = novo('m');
+  fazer('privado.salvar', { campos: { texto: 'meu diário de verdade' } });
+  fazer('exemplos.gerar', { estresse: true });
+  assert.ok(estado.habitos.filter((h) => h.membro === 'k').length >= 12);
+  assert.ok(estado.mercado.length >= 60);
+  assert.ok(estado.pendencias.length >= 40);
+  assert.ok(estado.pendencias.some((p) => p.repete === 'anual' && p.icone === '🎁'));
+  assert.ok(estado.mercado.every((i) => i.secao), 'toda compra tem seção');
+  fazer('exemplos.remover');
+  assert.equal(estado.habitos.filter((h) => h.exemplo).length, 0);
+  assert.equal(estado.mercado.length, 0);
+  assert.equal(estado.privado.m[HOJE].texto, 'meu diário de verdade', 'o real fica');
+  assert.equal(Object.values(estado.privado.k || {}).length, 0);
 });
 
 test('ação desconhecida é recusada', () => {

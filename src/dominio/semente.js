@@ -69,6 +69,7 @@ export function semente(hoje, op = { exemplos: true }) {
     pend('Pagar o IPTU', 'm', -2), pend('Vacina da Chihiro', 'k', 0), pend('Ligar pro encanador', null, 0, 'Vazamento embaixo da pia'),
     pend('Trocar filtro da água', 'm', 3), pend('Banho do Anakin', 'k', 5), pend('Doar roupas', null, null),
   ];
-  e.registro = { m: { [hoje]: { humor: 4, energia: 3, destaque: 'Fechei a proposta do cliente e ainda deu tempo de correr no parque.', exemplo: true } }, k: {} };
+  e.registro = { m: { [hoje]: { humor: 4, energia: 3, exemplo: true } }, k: {} };
+  e.privado = { m: { [hoje]: { destaque: 'Fechei a proposta do cliente e ainda deu tempo de correr no parque.', exemplo: true } } };
   return e;
 }

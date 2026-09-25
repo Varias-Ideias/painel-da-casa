@@ -33,6 +33,8 @@ a { color: var(--accent); }
 /* no painel, cada grupo é uma linha só de mosaicos compactos (rola de lado se um dia não couber) */
 .painel .grupo .fila { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; padding-block: 2px; }
 .painel .grupo .fila::-webkit-scrollbar { display: none; }
+/* quando tem mais rotina do que cabe: a borda direita esmaece, sinal de que dá para arrastar */
+.painel .grupo .fila.transborda { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); padding-right: 40px; }
 .painel .grupo .tile { width: 100px; min-height: 0; flex: none; padding: 8px 6px 7px; border-radius: 18px; }
 .painel .grupo .tile .anel { width: 52px; height: 52px; }
 .painel .grupo .tile .anel .emoji { font-size: 1.35rem; }
@@ -67,7 +69,9 @@ a { color: var(--accent); }
 .tile .anel .emoji { font-size: 1.6rem; line-height: 1; }
 .tile .anel .dentro { font-family: var(--display); font-size: 1.7rem; line-height: 1; }
 .tile .t { font-weight: 700; font-size: .88rem; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tile .s { font-size: .74rem; color: var(--muted); white-space: nowrap; }
+.tile .s { font-size: .74rem; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* na aba Hoje do celular a barra já tem o ＋: o do topo sai para não ficar dobrado */
+body[data-aba-atual="hoje"] .cel .cabeca .mais-rapido { display: none; }
 .tile.feito { background: color-mix(in oklab, var(--accent) 16%, transparent); border-color: color-mix(in oklab, var(--accent) 35%, transparent); }
 .tile.feito .anel .emoji { filter: saturate(1.1); }
 .tile .ok { position: absolute; top: 8px; right: 10px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: .72rem; display: grid; place-items: center; font-weight: 700; }
@@ -77,6 +81,21 @@ a { color: var(--accent); }
 .tile.brilha::after { content: ""; position: absolute; inset: -2px; border-radius: 24px; border: 2px solid var(--accent); animation: onda .9s ease-out forwards; pointer-events: none; }
 @keyframes brilha { 0% { transform: scale(1); } 30% { transform: scale(1.06); } 100% { transform: scale(1); } }
 @keyframes onda { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.25); } }
+
+/* linha do mercado: item (toque = carrinho) + ⋯ editar (celular) + ✕ tirar da lista */
+.linha-item { display: flex; align-items: center; gap: 2px; }
+.linha-item > .item { flex: 1; min-width: 0; }
+.mexer.tirar { color: var(--muted); font-size: .95rem; opacity: .7; }
+.mexer.tirar:active { color: var(--late); opacity: 1; }
+
+/* pendências: rolam dentro do cartão no painel, como o mercado */
+.painel [data-mod="pendencias"] > .lista { overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 22px), transparent); mask-image: linear-gradient(#000 calc(100% - 22px), transparent); padding-bottom: 18px; }
+.painel [data-mod="pendencias"] > .lista::-webkit-scrollbar { display: none; }
+/* datas especiais (aniversário, presente): o ícone no lugar da caixinha */
+.pend.especial .box { border-style: dashed; display: grid; place-items: center; font-size: 1.15rem; }
+.prazo.especial { background: color-mix(in oklab, var(--pet) 22%, transparent); color: var(--pet); }
+.tipos-pend > button { flex: 1; }
 
 /* item já no carrinho (na lista "Ver carrinho") */
 .item.no-carrinho .bola { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }

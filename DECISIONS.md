@@ -99,6 +99,22 @@ Uma ou duas linhas por decisão: o quê e por quê. As mais novas ficam embaixo.
   digitado: nome da pendência e da rotina, destaque, gratidão, diário e a barra "Anotar" (que aceita
   o 🎤 do teclado).
 
+- **D35. O destaque do dia é privado, como o diário.** O painel mostra só humor e energia. Os
+  destaques que já existiam foram movidos, uma vez, do registro (que a casa via) para o privado de
+  cada pessoa (migração `destaque-privado`, testada).
+- **D36. O mercado ganhou ✕ para tirar da lista** (com desfazer). Tocar no nome continua mandando
+  para o carrinho.
+- **D37. Item que cai em "Outros" gera a pergunta "Em que seção fica X?"**, com as seções em chips;
+  um toque ensina o app. O dicionário de seções também cresceu bastante.
+- **D38. Pendências também guardam datas:** 🎂 aniversário e 📌 data importante se repetem todo ano,
+  aparecem só a partir de N dias antes ("em 5 dias") e, ao serem concluídas, voltam no ano seguinte.
+  O aniversário pode criar junto "🎁 Comprar presente" alguns dias antes. As que ainda não chegaram
+  ficam em "Próximas datas", no fim da lista.
+- **D39. As pendências do painel rolam dentro do cartão**, como o mercado (sem "+N").
+- **D40. "Teste de estresse" (Ajustes):** 42 rotinas, cerca de 57 itens e 48 pendências, removível. O
+  layout aguentou; ajustes feitos: borda esmaecida nas faixas de rotina que passam da largura e texto
+  com reticências nos mosaicos do celular.
+
 ## Limites gratuitos (conferidos em 25/09/2026)
 
 - **Vercel Hobby:** grátis, só para uso pessoal e não comercial, o que serve para a casa. Quem passa do

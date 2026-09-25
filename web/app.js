@@ -6,7 +6,7 @@
 //   vista     = servidor + fila aplicada com o MESMO código do servidor (src/dominio/acoes.js)
 // Toque → aplica na vista na hora → entra na fila → vai para o servidor → o servidor avisa todo
 // mundo por SSE → cada aparelho recarrega o estado.
-import { aplicar } from '/dominio/acoes.js';
+import { aplicar, pendenciaVisivel } from '/dominio/acoes.js';
 import { estadoHabito, historico } from '/dominio/habitos.js';
 import { hojeNoFuso, somarDias, diferencaDias, formatoCurto, formatoRelativo } from '/dominio/datas.js';
 import { normalizar } from '/dominio/mercado.js';
@@ -91,8 +91,25 @@ function agir(tipo, dados = {}, { silencioso = false, semDesfazer = false } = {}
   LS.set(K('painel-fila'), fila);
   render();
   if (!silencioso) toast(r.fala, { desfazer: !semDesfazer && r.desfazer ? () => agir(r.desfazer.tipo, r.desfazer.dados, { semDesfazer: true }) : null });
+  if (!silencioso && (tipo === 'mercado.adicionar' || tipo === 'captura')) perguntarSecao(r);
   enviar();
   return r;
+}
+
+/**
+ * Item novo que o app não sabe onde fica (caiu em "Outros"): pergunta na hora, com as seções em
+ * chips. Um toque e o app aprende — da próxima vez esse item já cai no lugar certo.
+ */
+function perguntarSecao(r) {
+  const novos = r.resultado?.novos || [];
+  const i = vista.mercado.find((x) => novos.includes(x.nome) && x.secao === 'Outros' && !x.comprado_em);
+  if (!i) return;
+  toast(`Em que seção fica ${i.nome.toLowerCase()}?`, {
+    opcoes: [...vista.secoes.filter((s) => s !== 'Outros').map((s) => ({
+      rotulo: s,
+      fn: () => { agir('mercado.editar', { id: i.id, secao: s }, { silencioso: true }); toast(`Aprendi: ${i.nome.toLowerCase()} fica em ${s}.`); },
+    })), { rotulo: 'Deixar em Outros', fn: () => {} }],
+  });
 }
 
 let enviando = false;
@@ -431,8 +448,9 @@ function itensOrdenados() {
 function itemRow(i, editar) {
   const btn = `<button type="button" class="item ${i.comprado_em ? 'no-carrinho' : ''}" data-item="${esc(i.id)}" aria-label="${i.comprado_em ? 'Tirar do carrinho' : 'Marcar como comprado'}: ${esc(i.nome)}">
     <span class="bola" aria-hidden="true">${i.comprado_em ? '✓' : ''}</span><span class="n">${esc(i.nome)}</span><span class="qtd">${esc(i.qtd)}</span></button>`;
-  if (!editar) return btn;
-  return `<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px">${btn}<button type="button" class="mexer" data-item-edit="${esc(i.id)}" aria-label="Editar ${esc(i.nome)}">⋯</button></div>`;
+  // ✕ tira da lista (com desfazer); ⋯ (no celular) edita quantidade e seção
+  const tirar = `<button type="button" class="mexer tirar" data-item-del="${esc(i.id)}" aria-label="Tirar ${esc(i.nome)} da lista">✕</button>`;
+  return `<div class="linha-item">${btn}${editar ? `<button type="button" class="mexer" data-item-edit="${esc(i.id)}" aria-label="Editar ${esc(i.nome)}">⋯</button>` : ''}${tirar}</div>`;
 }
 function renderMercado(el) {
   const agrupar = el.dataset.agrupar === '1';
@@ -548,23 +566,28 @@ function mercadoRapido() {
 // ---------------------------------------------------------------- pendências
 function pendOrdenadas() {
   const peso = (p) => (p.prazo ? diferencaDias(hoje(), p.prazo) : 99999);
-  return vista.pendencias.filter((p) => !p.concluida_em).sort((a, b) => peso(a) - peso(b) || a.em.localeCompare(b.em));
+  return vista.pendencias.filter((p) => pendenciaVisivel(p, hoje())).sort((a, b) => peso(a) - peso(b) || a.em.localeCompare(b.em));
 }
-function prazoTag(iso) {
+/** Datas especiais ainda escondidas (fora da janela de aviso), para a lista completa. */
+function proximasDatas() {
+  return vista.pendencias.filter((p) => !p.concluida_em && !pendenciaVisivel(p, hoje())).sort((a, b) => a.prazo.localeCompare(b.prazo));
+}
+function prazoTag(iso, p = null) {
   if (!iso) return '<span class="prazo">sem prazo</span>';
   const d = diferencaDias(hoje(), iso);
   if (d < 0) return `<span class="prazo atrasada">${d === -1 ? 'ontem' : `há ${-d} dias`}</span>`;
-  if (d === 0) return '<span class="prazo hoje">hoje</span>';
+  if (d === 0) return `<span class="prazo hoje">${p?.repete ? 'é hoje!' : 'hoje'}</span>`;
+  // datas especiais contam os dias; tarefas mostram o dia
+  if (p?.aviso_dias) return `<span class="prazo especial">${d === 1 ? 'amanhã' : `em ${d} dias`}</span>`;
   return `<span class="prazo">${d === 1 ? 'amanhã' : d < 7 ? formatoRelativo(iso, hoje()) : formatoCurto(iso)}</span>`;
 }
 function pendRow(p) {
   const r = p.resp ? membro(p.resp) : null;
-  const sub = [r ? `${r.emoji} ${r.nome}` : 'Casa', p.nota].filter(Boolean).join(' · ');
-  return `<div class="pend"><button type="button" class="box" data-pend-ok="${esc(p.id)}" aria-label="Concluir ${esc(p.titulo)}"></button>
-    <button type="button" class="t" data-pend-edit="${esc(p.id)}" style="text-align:left">${esc(p.titulo)}<small>${esc(sub)}</small></button>${prazoTag(p.prazo)}</div>`;
+  const sub = [p.repete ? `todo ano · ${formatoCurto(p.prazo).split(', ')[1]}` : (r ? `${r.emoji} ${r.nome}` : 'Casa'), p.nota].filter(Boolean).join(' · ');
+  return `<div class="pend ${p.icone ? 'especial' : ''}"><button type="button" class="box" data-pend-ok="${esc(p.id)}" aria-label="${p.repete ? 'Feito este ano' : 'Concluir'}: ${esc(p.titulo)}">${p.icone ? `<span>${esc(p.icone)}</span>` : ''}</button>
+    <button type="button" class="t" data-pend-edit="${esc(p.id)}" style="text-align:left">${esc(p.titulo)}<small>${esc(sub)}</small></button>${prazoTag(p.prazo, p)}</div>`;
 }
 function renderPend(el) {
-  const lim = Number(el.dataset.limite) || 999;
   if (!el.dataset.pronto) {
     el.innerHTML = `<header><h2>Pendências</h2>${el.closest('.painel') ? '<button type="button" class="chip" data-a="nova-pendencia" aria-label="Nova pendência">＋</button>' : ''}</header>
       ${el.dataset.form === '1' ? '<button type="button" class="botao" data-a="nova-pendencia">＋ Nova pendência</button>' : ''}
@@ -573,49 +596,73 @@ function renderPend(el) {
   }
   const ps = pendOrdenadas();
   const filtro = el.dataset.ate ? ps.filter((p) => p.prazo && diferencaDias(hoje(), p.prazo) <= Number(el.dataset.ate)) : ps;
-  let corpo = filtro.slice(0, lim).map(pendRow).join('');
-  if (filtro.length > lim) corpo += `<button type="button" class="mais" data-a="mais-pend">+${filtro.length - lim} pendências</button>`;
+  let corpo = filtro.map(pendRow).join('');
   if (!filtro.length) corpo = `<p class="vazio">${el.dataset.ate ? 'Nada para hoje.' : 'Nenhuma pendência. 🎉'}</p>`;
-  $('.lista', el).innerHTML = corpo;
-  caber($('.lista', el), filtro.length, 'pendências', 'mais-pend');
+  // na lista completa (celular e "ver todas"), as datas especiais que ainda vão chegar
+  if (el.dataset.proximas === '1') {
+    const px = proximasDatas();
+    if (px.length) corpo += `<div class="sec">Próximas datas</div>${px.map(pendRow).join('')}`;
+  }
+  const lista = $('.lista', el);
+  const rolagem = lista.scrollTop;
+  lista.innerHTML = corpo;
+  lista.scrollTop = rolagem;
 }
 
-/**
- * No painel nada rola: se a lista não couber no cartão, tira itens do fim até caber e mostra
- * "+N itens" (que abre a lista inteira). Mede o que o navegador desenhou, então vale para
- * paisagem, retrato e qualquer tamanho de fonte.
- */
-function caber(lista, total, rotulo, acao) {
-  if (!lista || !lista.closest('.painel')) return;
-  const passa = () => lista.scrollHeight > lista.clientHeight + 1;
-  if (!passa()) return;
-  $('.mais', lista)?.remove();
-  const itens = [...lista.children];
-  const mais = document.createElement('button');
-  mais.type = 'button';
-  mais.className = 'mais';
-  mais.dataset.a = acao;
-  lista.append(mais);
-  let n = itens.length;
-  do { itens[--n]?.remove(); mais.textContent = `+${total - n} ${rotulo}`; } while (n > 0 && passa());
-}
-/** Formulário de pendência por toque: o título é o único texto; quem e quando são chips. */
+const TIPOS_PEND = [['tarefa', '✓ Tarefa'], ['aniversario', '🎂 Aniversário'], ['data', '📌 Data importante']];
+/** Formulário por toque. Tarefa: quem e quando. Aniversário/data: dia, repete todo ano, avisar antes e (aniversário) presente. */
 function formPendencia(p = null) {
-  return `<div class="campo"><label for="p-titulo">O que precisa ser feito</label><input id="p-titulo" type="text" required maxlength="80" enterkeyhint="done" value="${esc(p?.titulo || '')}" placeholder="Ex.: Pagar a conta de luz"></div>
-    <div class="campo"><span class="rot">Quem</span>${quemOp('resp', membrosEmOrdem(), p?.resp ?? '')}</div>
-    <div class="campo"><span class="rot">Quando</span>${prazos('prazo', hoje(), p?.prazo ?? '')}</div>
+  const tipo = p ? (p.repete ? (p.icone === '🎂' ? 'aniversario' : 'data') : 'tarefa') : 'tarefa';
+  return `${p ? '' : `<div class="campo">${opcoes('tipo', TIPOS_PEND, tipo, { classe: 'tipos-pend' })}</div>`}
+    <div class="campo"><label for="p-titulo" data-rot-titulo>${tipo === 'aniversario' ? 'De quem é o aniversário' : tipo === 'data' ? 'O que é' : 'O que precisa ser feito'}</label>
+      <input id="p-titulo" type="text" required maxlength="80" enterkeyhint="done" value="${esc(p?.titulo || '')}" placeholder="${tipo === 'aniversario' ? 'Ex.: Ju' : 'Ex.: Pagar a conta de luz'}"></div>
+    <div class="campo" data-so-tipo="tarefa"><span class="rot">Quem</span>${quemOp('resp', membrosEmOrdem(), p?.resp ?? '')}</div>
+    <div class="campo" data-so-tipo="tarefa"><span class="rot">Quando</span>${prazos('prazo', hoje(), p?.repete ? '' : p?.prazo ?? '')}</div>
+    <div class="campo" data-so-tipo="especial"><label for="p-dia">Dia</label><input id="p-dia" type="date" value="${esc(p?.repete ? p.prazo : '')}"><span class="dica">Repete todo ano.</span></div>
+    <div class="campo" data-so-tipo="especial"><span class="rot">Começar a mostrar</span>${opcoes('aviso', [[3, '3 dias antes'], [7, '1 semana antes'], [14, '2 semanas antes'], [30, '1 mês antes']], p?.aviso_dias ?? 7)}</div>
+    ${p ? '' : `<div class="campo" data-so-tipo="aniversario"><span class="rot">🎁 Lembrar de comprar presente</span>${opcoes('presente', [[0, 'Não'], [3, '3 dias antes'], [7, '1 semana antes'], [14, '2 semanas antes']], 7)}</div>`}
     <details class="campo" ${p?.nota ? 'open' : ''}><summary class="rot">Nota (opcional)</summary><input id="p-nota" type="text" maxlength="140" value="${esc(p?.nota || '')}"></details>`;
 }
-function lerPendencia(f) {
+function ajustarTipoPend(f) {
+  const t = valor(f, 'tipo') || f.dataset.tipo || 'tarefa';
+  const especial = t === 'aniversario' || t === 'data';
+  $$('[data-so-tipo]', f).forEach((x) => { const s = x.dataset.soTipo; x.hidden = !(s === t || (s === 'especial' && especial)); });
+  const rot = $('[data-rot-titulo]', f);
+  if (rot && valor(f, 'tipo')) {
+    rot.textContent = t === 'aniversario' ? 'De quem é o aniversário' : t === 'data' ? 'O que é' : 'O que precisa ser feito';
+    $('#p-titulo', f).placeholder = t === 'aniversario' ? 'Ex.: Ju' : t === 'data' ? 'Ex.: Aniversário de casamento' : 'Ex.: Pagar a conta de luz';
+  }
+}
+function lerPendencia(f, p = null) {
   const t = $('#p-titulo', f).value.trim();
-  return { titulo: t.charAt(0).toUpperCase() + t.slice(1), resp: valor(f, 'resp') || null, prazo: valor(f, 'prazo') || null, nota: $('#p-nota', f).value };
+  const tipo = valor(f, 'tipo') || (p?.repete ? (p.icone === '🎂' ? 'aniversario' : 'data') : 'tarefa');
+  const base = { nota: $('#p-nota', f).value };
+  if (tipo === 'tarefa') return { ...base, tipo, titulo: t.charAt(0).toUpperCase() + t.slice(1), resp: valor(f, 'resp') || null, prazo: valor(f, 'prazo') || null, repete: null, aviso_dias: null, icone: p?.icone && !p.repete ? p.icone : null };
+  const nome = t.charAt(0).toUpperCase() + t.slice(1);
+  return {
+    ...base, tipo, titulo: tipo === 'aniversario' && !p ? `Aniversário: ${nome}` : nome, resp: null, prazo: $('#p-dia', f).value || null,
+    repete: 'anual', aviso_dias: Number(valor(f, 'aviso')), icone: tipo === 'aniversario' ? '🎂' : (p?.icone || '📌'), presente: Number(valor(f, 'presente') || 0), nomePessoa: nome,
+  };
 }
 function novaPendencia() {
   sheet(`<h2>Nova pendência</h2><form class="conteudo" style="display:flex;flex-direction:column;gap:16px">${formPendencia()}<button type="submit" class="botao">Anotar</button></form>`, (el, fechar) => {
     const f = $('form', el);
-    ligarEntradas(f);
+    ajustarTipoPend(f);
+    ligarEntradas(f, (nome) => { if (nome === 'tipo') ajustarTipoPend(f); });
     setTimeout(() => $('#p-titulo', f).focus(), 150);
-    f.addEventListener('submit', (e) => { e.preventDefault(); if (agir('pendencia.criar', lerPendencia(f))) fechar(); });
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const d = lerPendencia(f);
+      if (d.tipo !== 'tarefa' && !d.prazo) return toast('Escolha o dia.', { erro: true });
+      const { tipo, presente, nomePessoa, ...dados } = d;
+      if (!agir('pendencia.criar', dados)) return;
+      // aniversário com presente: uma segunda pendência anual, alguns dias antes, que aparece uma semana antes dela
+      if (tipo === 'aniversario' && presente > 0) {
+        agir('pendencia.criar', { titulo: `Comprar presente: ${nomePessoa}`, prazo: somarDias(dados.prazo, -presente), repete: 'anual', aviso_dias: 7, icone: '🎁', resp: eu !== 'casa' ? eu : null }, { silencioso: true });
+        toast(`Anotei o aniversário de ${nomePessoa} e o lembrete do presente ${presente} dias antes.`);
+      }
+      fechar();
+    });
   });
 }
 function editarPend(id) {
@@ -624,8 +671,15 @@ function editarPend(id) {
   sheet(`<h2>Pendência</h2><form class="conteudo" style="display:flex;flex-direction:column;gap:16px">${formPendencia(p)}
     <button type="submit" class="botao">Salvar</button><button type="button" class="botao sec" data-ok>✓ Concluir</button><button type="button" class="botao perigo" data-remover>Remover</button></form>`, (el, fechar) => {
     const f = $('form', el);
+    f.dataset.tipo = p.repete ? 'especial' : 'tarefa';
+    ajustarTipoPend(f);
     ligarEntradas(f);
-    f.addEventListener('submit', (e) => { e.preventDefault(); if (agir('pendencia.editar', { id, ...lerPendencia(f) })) fechar(); });
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const { tipo, presente, nomePessoa, ...dados } = lerPendencia(f, p);
+      if (p.repete && !dados.prazo) return toast('Escolha o dia.', { erro: true });
+      if (agir('pendencia.editar', { id, ...dados })) fechar();
+    });
     $('[data-ok]', f).addEventListener('click', () => { agir('pendencia.concluir', { id }); fechar(); });
     $('[data-remover]', f).addEventListener('click', () => { agir('pendencia.remover', { id }); fechar(); });
   });
@@ -641,7 +695,7 @@ function adicionarRapido() {
       ${ps.map((p) => `<button type="button" data-rap="dia" data-quem="${esc(p.id)}"><span>${esc(p.emoji)}</span><b>Dia de ${esc(p.nome)}</b><small>humor, energia, rotina</small></button>`).join('')}
       <button type="button" data-rap="rotina"><span>🌱</span><b>Nova rotina</b><small>para alguém da casa</small></button>
     </div>
-    <p class="dica">Prefere falar? Toque em “Anotar” e use o 🎤 do teclado: “leite e pão”, “treinei”, “pendência: IPTU até sexta”.</p>`, (el, fechar) => {
+    <p class="dica">Prefere falar? Toque na barra do ＋ e use o 🎤 do teclado: “leite e pão”, “treinei”, “pendência: IPTU até sexta”.</p>`, (el, fechar) => {
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-rap]');
       if (!b) return;
@@ -664,36 +718,14 @@ function renderRegistro(el) {
   const ids = el.dataset.pessoa ? [el.dataset.pessoa] : pessoas().map((p) => p.id);
   el.innerHTML = ids.map((id) => {
     const r = vista.registro?.[id]?.[hoje()] || {};
-    const vazio = !r.humor && !r.energia && !r.destaque;
+    const vazio = !r.humor && !r.energia;
+    // o destaque é privado: aqui (que a casa vê) só humor e energia
     return `${ids.length > 1 ? `<div class="sec">${esc(membro(id)?.emoji)} ${esc(membro(id)?.nome)}</div>` : ''}
-      <button type="button" class="reg" data-reg="${esc(id)}" aria-label="Registro do dia de ${esc(membro(id)?.nome)}">
-      ${vazio ? '<span class="vazio">Sem registro hoje · toque para registrar</span>' : escala('Humor', r.humor) + escala('Energia', r.energia) + (r.destaque ? `<span class="destaque">“${esc(r.destaque)}”</span>` : '')}</button>`;
+      <button type="button" class="reg" data-reg="${esc(id)}" aria-label="Como está o dia de ${esc(membro(id)?.nome)}">
+      ${vazio ? '<span class="vazio">Como está o dia? Toque para marcar</span>' : escala('Humor', r.humor) + escala('Energia', r.energia)}</button>`;
   }).join('');
 }
 function gradeEscala(campo, v) { return caras(campo, v); }
-/** Editor do registro público (humor, energia, destaque). No painel, qualquer pessoa da casa. */
-function editarReg(id, dia = hoje()) {
-  const p = membro(id);
-  if (!p) return;
-  if (eu !== 'casa' && eu !== id) return toast(`Esse registro é de ${p.nome}: edite pelo aparelho de ${p.nome} ou pelo painel da casa.`);
-  const r = vista.registro?.[id]?.[dia] || {};
-  sheet(`<div class="quem"><div class="av" style="color:${esc(p.cor)}">${esc(p.emoji)}</div><strong>${dia === hoje() ? 'Hoje' : formatoCurto(dia)} · ${esc(p.nome)}</strong></div>
-    <h3>Humor</h3>${gradeEscala('humor', r.humor)}<h3>Energia</h3>${gradeEscala('energia', r.energia)}
-    <div class="campo"><label for="r-destaque">Destaque do dia</label><textarea id="r-destaque" maxlength="280" placeholder="O melhor do dia, em uma ou duas linhas">${esc(r.destaque || '')}</textarea></div>
-    <p class="dica">Salva sozinho. Diário e gratidão ficam só no celular de cada pessoa; o painel da casa não mostra.</p>`, (el) => {
-    el.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-v]');
-      if (!b) return;
-      const campo = b.parentElement.dataset.campo;
-      const v = Number(b.dataset.v);
-      const atual = vista.registro?.[id]?.[dia]?.[campo];
-      agir('registro.salvar', { membro: id, data: dia, campos: { [campo]: atual === v ? null : v } }, { silencioso: true });
-      $$('button', b.parentElement).forEach((x) => x.classList.toggle('on', x === b && atual !== v));
-    });
-    const salvar = debounce((v) => agir('registro.salvar', { membro: id, data: dia, campos: { destaque: v } }, { silencioso: true }), 700);
-    $('#r-destaque', el).addEventListener('input', (e) => salvar(e.target.value));
-  });
-}
 
 // ---------------------------------------------------------------- menu da pessoa
 /**
@@ -712,7 +744,7 @@ function pessoaMenu(id) {
     const hs = vista.habitos.filter((h) => donos.includes(h.membro)).sort((a, b) => (a.arquivado - b.arquivado) || (a.ordem ?? 0) - (b.ordem ?? 0));
     el.innerHTML = `<div class="quem" style="--cor:${esc(ehPets ? 'var(--pet)' : p.cor)}"><div class="av">${ehPets ? '🐶' : esc(p.emoji)}</div><strong>${ehPets ? esc(pets().map((x) => x.nome).join(' e ')) : esc(p.nome)}</strong></div>
       ${r ? `<h3>Hoje</h3><div class="rot">Humor</div>${gradeEscala('humor', r.humor)}<div class="rot">Energia</div>${gradeEscala('energia', r.energia)}
-        <div class="campo"><label for="pm-destaque">Destaque do dia</label><textarea id="pm-destaque" maxlength="280" placeholder="O melhor do dia, em uma ou duas linhas">${esc(r.destaque || '')}</textarea></div>` : ''}
+        ${eu === id ? `<div class="campo"><label for="pm-destaque">Destaque do dia <span class="privado-tag">🔒 só você vê</span></label><textarea id="pm-destaque" maxlength="280" placeholder="O melhor do dia, em uma ou duas linhas">${esc(vista.privado?.[id]?.[hoje()]?.destaque || '')}</textarea></div>` : ''}` : ''}
       <div class="linha" style="align-items:center"><h3>Rotina</h3><button type="button" class="chip" data-nova-rotina>+ Nova rotina</button></div>
       <div class="lista" style="overflow:visible">${hs.filter((h) => !h.arquivado).map((h) => `<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px">${habRow(h)}<button type="button" class="mexer" data-editar-rotina="${esc(h.id)}" aria-label="Editar ${esc(h.nome)}">✎</button></div>`).join('') || '<p class="vazio">Nenhuma rotina ainda.</p>'}</div>
       ${hs.some((h) => h.arquivado) ? `<details><summary class="dica">Arquivadas (${hs.filter((h) => h.arquivado).length})</summary>${hs.filter((h) => h.arquivado).map((h) => `<div class="linha-hab arq"><span>${esc(h.emoji || '•')}</span><span>${esc(h.nome)}</span><button type="button" class="chip" data-editar-rotina="${esc(h.id)}">Reativar</button></div>`).join('')}</details>` : ''}
@@ -735,8 +767,8 @@ function pessoaMenu(id) {
       const ed = e.target.closest('[data-editar-rotina]');
       if (ed) { fechar(); return editarHab(ed.dataset.editarRotina); }
     });
-    const salvar = debounce((v) => agir('registro.salvar', { membro: id, campos: { destaque: v } }, { silencioso: true }), 700);
-    c.addEventListener('input', (e) => { if (e.target.id === 'pm-destaque') salvar(e.target.value); });
+    const salvarDestaque = debounce((v) => agir('privado.salvar', { campos: { destaque: v } }, { silencioso: true }), 700);
+    c.addEventListener('input', (e) => { if (e.target.id === 'pm-destaque') salvarDestaque(e.target.value); });
   });
 }
 
@@ -788,7 +820,8 @@ function renderHabitos(el) {
     if (donos.length > 1 && el.dataset.rotulos !== '0') html += `<div class="sec">${esc(membro(id)?.emoji)} ${esc(membro(id)?.nome)}</div>`;
     html += hs.map(mosaico ? habTile : habRow).join('');
   }
-  el.innerHTML = html || '<p class="vazio">Nenhum hábito. Crie nos ajustes (⚙).</p>';
+  el.innerHTML = html || '<p class="vazio">Nenhuma rotina ainda. Toque no nome para criar.</p>';
+  if (mosaico) el.classList.toggle('transborda', el.scrollWidth > el.clientWidth + 2);
 }
 function renderSync(el) {
   const n = fila.length;
@@ -872,7 +905,7 @@ function layoutPainel() {
   const cachorros = pets().length ? grupo(`<div class="quem" data-pessoa-menu="pets" role="button" style="--cor:var(--pet)"><div class="av">🐶</div><strong>${esc(pets().map((p) => p.nome).join(' e '))}</strong></div>`, 'pets') : '';
   return `<main class="painel C">
     <section class="card" id="agora"><div class="linha"><div class="relogio" data-mod="relogio"></div>${botoesTopo()}</div>
-      <div data-mod="captura"></div><div data-mod="pendencias"></div>
+      <div data-mod="captura"></div><div data-mod="pendencias" data-proximas="1"></div>
       <div class="linha"><span data-mod="sync"></span><span class="selo" data-mod="tela"></span></div></section>
     <section class="card" id="hab"><header><h2>Hoje</h2></header><div class="grupos">
       ${cachorros}
@@ -892,12 +925,13 @@ function montarAba() {
   const m = $('#aba');
   if (!m) return;
   $$('[data-aba]').forEach((b) => b.setAttribute('aria-current', b.dataset.aba === aba ? 'page' : 'false'));
+  document.body.dataset.abaAtual = aba; // (não "data-aba": o clique procura [data-aba] para trocar de aba)
   $('#titulo-aba').textContent = ABAS.find((a) => a[0] === aba)?.[2] || '';
   const minha = eu !== 'casa' ? eu : null;
   if (aba === 'mercado') {
     m.innerHTML = `<section class="card" data-mod="mercado" data-agrupar="1" data-editar="1" data-chips="6"></section>`;
   } else if (aba === 'pendencias') {
-    m.innerHTML = `<section class="card" data-mod="pendencias" data-form="1"></section>`;
+    m.innerHTML = `<section class="card" data-mod="pendencias" data-form="1" data-proximas="1"></section>`;
   } else if (aba === 'registro') {
     montarRegistroCel(m, minha);
     return;
@@ -919,8 +953,9 @@ function montarRegistroCel(m, minha) {
   m.innerHTML = `<div class="navdia"><button type="button" class="icone" data-dia-nav="-1" aria-label="Dia anterior">‹</button><strong>${rot}</strong>
       <button type="button" class="icone" data-dia-nav="1" aria-label="Dia seguinte" ${diaReg >= hoje() ? 'disabled' : ''}>›</button></div>
     <section class="card"><h3>Humor</h3>${gradeEscala('humor', r.humor)}<h3>Energia</h3>${gradeEscala('energia', r.energia)}
-      <div class="campo"><label for="c-destaque">Destaque do dia</label><textarea id="c-destaque" maxlength="280" placeholder="O melhor do dia">${esc(r.destaque || '')}</textarea><span class="dica">Aparece no painel da casa.</span></div></section>
+      <span class="dica">Humor e energia aparecem no painel da casa.</span></section>
     <section class="card"><div class="linha"><h3>Só seu</h3><span class="privado-tag">🔒 só você vê</span></div>
+      <div class="campo"><label for="c-destaque">Destaque do dia</label><textarea id="c-destaque" maxlength="280" placeholder="O melhor do dia" style="min-height:70px">${esc(pv.destaque || '')}</textarea></div>
       <div class="campo"><label for="c-grat">Gratidão</label><textarea id="c-grat" maxlength="500" placeholder="Uma ou duas linhas" style="min-height:70px">${esc(pv.gratidao || '')}</textarea></div>
       <div class="campo"><label for="c-diario">Diário</label><textarea id="c-diario" maxlength="5000" placeholder="Escreva à vontade. Salva sozinho.">${esc(pv.texto || '')}</textarea></div></section>`;
   const dia = diaReg;
@@ -932,7 +967,7 @@ function montarRegistroCel(m, minha) {
     agir('registro.salvar', { data: dia, campos: { [campo]: atual === v ? null : v } }, { silencioso: true });
     $$('button', g).forEach((x) => x.classList.toggle('on', x === b && atual !== v));
   }));
-  const sDest = debounce((v) => agir('registro.salvar', { data: dia, campos: { destaque: v } }, { silencioso: true }), 700);
+  const sDest = debounce((v) => agir('privado.salvar', { data: dia, campos: { destaque: v } }, { silencioso: true }), 700);
   const sGrat = debounce((v) => agir('privado.salvar', { data: dia, campos: { gratidao: v } }, { silencioso: true }), 700);
   const sDiar = debounce((v) => agir('privado.salvar', { data: dia, campos: { texto: v } }, { silencioso: true }), 900);
   $('#c-destaque', m).addEventListener('input', (e) => sDest(e.target.value));
@@ -986,7 +1021,7 @@ function ajustes() {
         <button type="button" class="chip" data-editar-membro="${esc(m.id)}">Editar</button></div>`).join('')}</div>
     <div class="ajuste"><span class="rot">Ordem das seções do mercado</span><span class="dica">A ordem do corredor do seu mercado.</span>
       ${vista.secoes.map((s, i) => `<div class="linha" style="align-items:center"><span>${esc(s)}</span><span class="opcoes"><button type="button" data-sec="${i}" data-dir="-1" aria-label="Subir ${esc(s)}" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-sec="${i}" data-dir="1" aria-label="Descer ${esc(s)}" ${i === vista.secoes.length - 1 ? 'disabled' : ''}>↓</button></span></div>`).join('')}</div>
-    <div class="ajuste"><span class="rot">Dados de exemplo</span><span class="dica">Para ver como o painel fica com o tempo: 90 dias de hábitos, humor e destaques, mais rotinas, mercado e pendências. Tudo marcado como exemplo; o que é de vocês não é tocado.</span><div class="opcoes"><button type="button" data-exemplos-gerar>Gerar 90 dias de exemplo</button>${temExemplos ? '<button type="button" data-exemplos>Remover exemplos</button>' : ''}</div></div>
+    <div class="ajuste"><span class="rot">Dados de exemplo</span><span class="dica">Para ver como o painel fica com o tempo: 90 dias de hábitos, humor e destaques, mais rotinas, mercado e pendências. Tudo marcado como exemplo; o que é de vocês não é tocado.</span><div class="opcoes"><button type="button" data-exemplos-gerar>Gerar 90 dias de exemplo</button><button type="button" data-exemplos-estresse>Teste de estresse</button>${temExemplos ? '<button type="button" data-exemplos>Remover exemplos</button>' : ''}</div></div>
     <div class="ajuste"><span class="rot">Voz (Siri)</span><span class="dica">O atalho “Anotar no painel” manda o que você ditar para este endereço, com o seu link de pareamento. Passo a passo no README do projeto.</span>
       <code style="font-size:.85rem;word-break:break-all">POST ${esc(location.origin)}/api/capture</code></div>`;
     $$('[data-mod]', el).forEach((x) => RENDER[x.dataset.mod]?.(x));
@@ -1022,7 +1057,8 @@ function ajustes() {
         return;
       }
       if (e.target.closest('[data-exemplos]')) { agir('exemplos.remover'); desenhar(c); return; }
-      if (e.target.closest('[data-exemplos-gerar]')) { agir('exemplos.gerar'); desenhar(c); }
+      if (e.target.closest('[data-exemplos-gerar]')) { agir('exemplos.gerar'); desenhar(c); return; }
+      if (e.target.closest('[data-exemplos-estresse]')) { agir('exemplos.gerar', { estresse: true }); desenhar(c); }
     });
     c.addEventListener('submit', (e) => {
       const f = e.target.closest('[data-membro]');
@@ -1165,11 +1201,12 @@ function mostrarParear() {
 // ---------------------------------------------------------------- eventos
 document.addEventListener('click', (e) => {
   const t = e.target;
-  if (t.closest('.veu') && !t.closest('[data-hab-marcar],[data-hab-det],[data-item],[data-item-edit],[data-chip],[data-pend-ok],[data-pend-edit],[data-a]')) return;
+  if (t.closest('.veu') && !t.closest('[data-hab-marcar],[data-hab-det],[data-item],[data-item-edit],[data-item-del],[data-chip],[data-pend-ok],[data-pend-edit],[data-a]')) return;
   let x;
   if ((x = t.closest('[data-hab-marcar]'))) return marcarHab(x.dataset.habMarcar);
   if ((x = t.closest('[data-hab-det]'))) return detalheHab(x.dataset.habDet);
   if ((x = t.closest('[data-item-edit]'))) return editarItem(x.dataset.itemEdit);
+  if ((x = t.closest('[data-item-del]'))) return agir('mercado.remover', { id: x.dataset.itemDel });
   if ((x = t.closest('[data-item]'))) {
     // risca e desliza para fora antes de sair da lista; depois a ação (com desfazer no aviso)
     if (x.classList.contains('saindo')) return;
@@ -1197,7 +1234,7 @@ document.addEventListener('click', (e) => {
   if (a === 'foto') { proximaFoto(); reiniciarFotos(); return; }
   if (a === 'ver-carrinho') return sheet('<section class="card" data-mod="mercado" data-carrinho="1" data-agrupar="1" style="border:0;padding:0;overflow:visible;background:none;box-shadow:none"></section><p class="dica">Tocou por engano? Toque no item para ele voltar para a lista.</p>', (s) => renderMercado($('[data-mod]', s)));
   if (a === 'mais-merc') return sheet('<section class="card" data-mod="mercado" data-agrupar="1" data-editar="1" data-semcampo="1" data-chips="0" style="border:0;padding:0;overflow:visible"></section>', (s) => renderMercado($('[data-mod]', s)));
-  if (a === 'mais-pend') return sheet('<section class="card" data-mod="pendencias" style="border:0;padding:0;overflow:visible"></section>', (s) => renderPend($('[data-mod]', s)));
+  if (a === 'mais-pend') return sheet('<section class="card" data-mod="pendencias" data-proximas="1" style="border:0;padding:0;overflow:visible"></section>', (s) => renderPend($('[data-mod]', s)));
 });
 
 document.addEventListener('submit', (e) => {

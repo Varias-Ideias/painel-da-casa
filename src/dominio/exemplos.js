@@ -4,7 +4,7 @@
 // Determinístico: a mesma casa no mesmo dia gera exatamente os mesmos dados no aparelho e no
 // servidor (a ação roda nos dois; ids e valores precisam bater).
 import { somarDias, inicioDaSemana } from './datas.js';
-import { normalizar } from './mercado.js';
+import { normalizar, secaoDe } from './mercado.js';
 
 /** Gerador pseudoaleatório com semente (mulberry32). */
 function rng(sementeTxt) {
@@ -65,11 +65,37 @@ const PENDENCIAS = [
  * Gera os exemplos para `hoje`. Não mexe em nada que não seja exemplo.
  * @param {any} estado @param {string} hoje
  */
-export function gerarExemplos(estado, hoje) {
-  const r = rng(`painel-${hoje}`);
+// Teste de estresse: muito de tudo, para ver o layout no limite.
+const ESTRESSE_ROTINAS = [['Alongar', '🤸', 'check'], ['Vitamina', '💊', 'check'], ['Sem celular na cama', '📵', 'check'], ['Caminhar', '🚶', 'qtd'],
+  ['Pedalar', '🚴', 'semana'], ['Estudar inglês', '🧠', 'check'], ['Regar plantas', '🪴', 'check'], ['Sem refrigerante', '🍷', 'evitar'],
+  ['Journaling', '✍️', 'check'], ['Violão', '🎸', 'semana']];
+const ESTRESSE_PET = [['Escovar pelo', '🪮', 'semana'], ['Petisco dental', '🦴', 'check'], ['Brincar', '🎾', 'check']];
+const ESTRESSE_MERCADO = ['Maçã', 'Cebola', 'Alho', 'Batata', 'Alface', 'Limão', 'Cenoura', 'Brócolis', 'Pepino', 'Mamão', 'Manga', 'Uva', 'Morango',
+  'Pão de forma', 'Bisnaguinha', 'Carne moída', 'Peixe', 'Linguiça', 'Queijo', 'Manteiga', 'Presunto', 'Requeijão', 'Arroz', 'Feijão', 'Açúcar',
+  'Macarrão', 'Molho de tomate', 'Farinha', 'Atum', 'Milho', 'Granola', 'Suco de uva', 'Refrigerante', 'Cerveja', 'Vinho', 'Amaciante',
+  'Desinfetante', 'Esponja', 'Saco de lixo', 'Álcool', 'Sabonete', 'Shampoo', 'Condicionador', 'Pasta de dente', 'Fio dental', 'Desodorante',
+  'Areia', 'Tapete higiênico', 'Antipulgas', 'Pilhas'];
+const ESTRESSE_PENDENCIAS = ['Revisar orçamento do mês', 'Trocar lâmpada da cozinha', 'Agendar revisão do carro', 'Pagar condomínio', 'Devolver livro da Ju',
+  'Ligar para a operadora', 'Comprar ração', 'Lavar as cortinas', 'Consertar a descarga', 'Renovar passaporte', 'Levar roupa na costureira',
+  'Organizar fotos', 'Cancelar assinatura', 'Marcar oftalmologista', 'Trocar óleo', 'Pintar a varanda', 'Montar prateleira', 'Declarar imposto',
+  'Enviar documentos do banco', 'Tirar medida da janela', 'Doar livros', 'Lavar o carro', 'Comprar vaso novo', 'Checar extintor',
+  'Imprimir boletos', 'Arrumar a gaveta', 'Trocar senha do Wi-Fi', 'Ver seguro residencial', 'Levar Chihiro no banho', 'Vacina do Anakin'];
+
+export function gerarExemplos(estado, hoje, { estresse = false } = {}) {
+  const r = rng(`painel-${hoje}${estresse ? '-estresse' : ''}`);
   const DIAS = 90;
   const inicio = somarDias(hoje, -DIAS);
-  const habitos = HABITOS_EXEMPLO
+  const extras = [];
+  if (estresse) {
+    for (const m of estado.membros) {
+      const base = m.tipo === 'pet' ? ESTRESSE_PET : ESTRESSE_ROTINAS;
+      base.forEach(([nome, emoji, tipo], i) => extras.push({
+        id: `ex-st-${m.id}-${i}`, membro: m.id, nome, emoji, tipo, apelidos: [],
+        ...(tipo === 'qtd' ? { meta: 30, unidade: 'min', passo: 10 } : {}), ...(tipo === 'semana' ? { vezes_semana: 2 } : {}),
+      }));
+    }
+  }
+  const habitos = [...HABITOS_EXEMPLO, ...extras]
     .filter((h) => estado.membros.some((m) => m.id === h.membro))
     .map((h, i) => ({ arquivado: false, criado_em: inicio, ordem: 100 + i, exemplo: true, ...h }));
   const todos = [...estado.habitos.filter((h) => !h.exemplo && !h.arquivado), ...habitos];
@@ -105,26 +131,44 @@ export function gerarExemplos(estado, hoje) {
     }
   }
 
-  const registro = {};
+  // humor e energia (a casa vê) e destaque (privado de cada um)
+  const registro = {}, privado = {};
   for (const m of estado.membros.filter((x) => x.tipo === 'pessoa')) {
     let humor = 3 + Math.round(r()), energia = 3;
     registro[m.id] = {};
+    privado[m.id] = {};
     const frases = DESTAQUES[m.id] || DESTAQUES.m;
     for (let i = DIAS; i >= 1; i--) {
       if (r() < 0.15) continue; // dia sem registro
       humor = Math.max(1, Math.min(5, humor + Math.round((r() - 0.5) * 2)));
       energia = Math.max(1, Math.min(5, energia + Math.round((r() - 0.5) * 2)));
-      registro[m.id][somarDias(hoje, -i)] = { humor, energia, destaque: r() < 0.6 ? frases[Math.floor(r() * frases.length)] : '', exemplo: true };
+      const dd = somarDias(hoje, -i);
+      registro[m.id][dd] = { humor, energia, exemplo: true };
+      if (r() < 0.6) privado[m.id][dd] = { destaque: frases[Math.floor(r() * frases.length)], exemplo: true };
     }
   }
 
-  const mercado = MERCADO.map(([nome, qtd, secao], i) => ({
-    id: `ex-mer-${i}`, nome, nome_norm: normalizar(nome), qtd, secao, adicionado_por: i % 2 ? 'k' : 'm', em: `${hoje}T09:00:00.000Z`,
+  const listaMercado = estresse ? [...MERCADO, ...ESTRESSE_MERCADO.map((n) => [n, r() < 0.3 ? String(1 + Math.floor(r() * 4)) : '', null])] : MERCADO;
+  const mercado = listaMercado.map(([nome, qtd, secao], i) => ({
+    id: `ex-mer-${i}`, nome, nome_norm: normalizar(nome), qtd, secao: secao || secaoDe(nome), adicionado_por: i % 2 ? 'k' : 'm', em: `${hoje}T09:00:00.000Z`,
     comprado_em: i % 6 === 5 ? `${hoje}T10:00:00.000Z` : null, comprado_por: i % 6 === 5 ? 'k' : null, origem: 'exemplo',
   }));
-  const pendencias = PENDENCIAS.map(([titulo, resp, dias, nota], i) => ({
-    id: `ex-pen-${i}`, titulo, resp, prazo: dias === null ? null : somarDias(hoje, dias), nota,
+  const pessoasIds = estado.membros.filter((x) => x.tipo === 'pessoa').map((x) => x.id);
+  const listaPend = estresse
+    ? [...PENDENCIAS, ...ESTRESSE_PENDENCIAS.map((t, i) => [t, i % 3 === 0 ? null : pessoasIds[i % pessoasIds.length] || null, i % 5 === 0 ? null : Math.floor(r() * 40) - 6, ''])]
+    : PENDENCIAS;
+  const pendencias = listaPend.map(([titulo, resp, dias, nota], i) => ({
+    id: `ex-pen-${i}`, titulo, resp, prazo: dias === null ? null : somarDias(hoje, dias), nota, repete: null, aviso_dias: null, icone: null,
     criada_por: i % 2 ? 'k' : 'm', em: `${somarDias(hoje, -3)}T08:00:00.000Z`, concluida_em: null, concluida_por: null, origem: 'exemplo',
   }));
-  return { habitos, eventos, registro, mercado, pendencias };
+  // datas especiais: aniversários que se repetem e só aparecem perto do dia, com o lembrete do presente antes
+  const datas = [['Aniversário da Ju', 6, '🎂'], ['Aniversário de casamento', 20, '💍'], ['Aniversário do Anakin', 45, '🐕'], ['Aniversário da mãe da Karen', 3, '🎂']];
+  datas.forEach(([titulo, emDias, icone], i) => {
+    const dia = somarDias(hoje, emDias);
+    pendencias.push({ id: `ex-dat-${i}`, titulo, resp: null, prazo: dia, nota: '', repete: 'anual', aviso_dias: 14, icone,
+      criada_por: 'k', em: `${somarDias(hoje, -30)}T08:00:00.000Z`, concluida_em: null, concluida_por: null, origem: 'exemplo' });
+    if (icone === '🎂') pendencias.push({ id: `ex-pre-${i}`, titulo: `Comprar presente: ${titulo.replace(/^Aniversário (da |do |de )?/, '')}`, resp: 'k', prazo: somarDias(dia, -5),
+      nota: '', repete: 'anual', aviso_dias: 7, icone: '🎁', criada_por: 'k', em: `${somarDias(hoje, -30)}T08:00:00.000Z`, concluida_em: null, concluida_por: null, origem: 'exemplo' });
+  });
+  return { habitos, eventos, registro, privado, mercado, pendencias };
 }

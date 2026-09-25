@@ -168,6 +168,23 @@ test('backup extra: cópia do dia vai para a segunda pasta, e falha nela não de
   fs.rmSync(d2, { recursive: true, force: true });
 });
 
+test('migração: destaques antigos saem do registro (a casa via) e vão para o privado de cada um', () => {
+  const d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'painel-mig-'));
+  fs.writeFileSync(path.join(d2, 'casa.json'), JSON.stringify({
+    versao: 1, casa: { tz: 'America/Sao_Paulo', inicio_semana: 1 }, membros: [{ id: 'k', tipo: 'pessoa', nome: 'Karen' }], habitos: [], eventos: [], secoes: [], mercado: [], catalogo: {}, pendencias: [],
+    registro: { k: { '2026-09-20': { humor: 4, destaque: 'segredo antigo' }, '2026-09-21': { humor: 3, destaque: '' } } }, privado: {}, tokens: [],
+  }));
+  const { servidor: s2, banco: b2 } = criarServidor({ dados: d2, silencioso: true, backupExtra: null });
+  s2.close();
+  assert.equal(b2.estado.registro.k['2026-09-20'].destaque, undefined);
+  assert.equal(b2.estado.registro.k['2026-09-20'].humor, 4);
+  assert.equal(b2.estado.privado.k['2026-09-20'].destaque, 'segredo antigo');
+  assert.equal(b2.estado.privado.k['2026-09-21'], undefined, 'destaque vazio não vira entrada');
+  const disco = JSON.parse(fs.readFileSync(path.join(d2, 'casa.json'), 'utf8'));
+  assert.ok(disco.migracoes.includes('destaque-privado'));
+  fs.rmSync(d2, { recursive: true, force: true });
+});
+
 test('backup diário existe desde a primeira gravação', () => {
   const b = fs.readdirSync(path.join(dir, 'backup'));
   assert.equal(b.length, 1);

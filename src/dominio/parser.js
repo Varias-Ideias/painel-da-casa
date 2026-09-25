@@ -119,7 +119,7 @@ export function interpretar(texto, ctx) {
     return { tipo: 'registro', campos };
   }
   const destaque = original.match(/^destaque(?:\s+do\s+dia)?\s*[:\-]\s*(.+)$/i);
-  if (destaque) return { tipo: 'registro', campos: { destaque: destaque[1].trim() } };
+  if (destaque) return { tipo: 'privado', campos: { destaque: destaque[1].trim() } }; // o destaque é privado (25/09)
 
   // 2) Privado: diário e gratidão (só a própria pessoa lê)
   const diario = original.match(/^di[áa]rio\s*[:\-]\s*(.+)$/i);

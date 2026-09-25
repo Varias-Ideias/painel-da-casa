@@ -38,6 +38,23 @@ export function abrir(dir, op = {}) {
   }
   estado.capturas ||= [];
   estado.aplicadas ||= {};
+  estado.migracoes ||= [];
+  // 25/09: o destaque do dia virou privado. Move o que já existia do registro (que a casa vê) para
+  // o privado de cada pessoa, uma vez só. Mais privacidade, nada se perde.
+  let migrou = false;
+  if (!estado.migracoes.includes('destaque-privado')) {
+    estado.privado ||= {};
+    for (const [m, dias] of Object.entries(estado.registro || {})) for (const [dd, r] of Object.entries(dias)) {
+      if (r.destaque === undefined) continue;
+      if (r.destaque) {
+        estado.privado[m] ||= {};
+        estado.privado[m][dd] = { ...(estado.privado[m][dd] || {}), destaque: estado.privado[m][dd]?.destaque || r.destaque, ...(r.exemplo ? { exemplo: true } : {}) };
+      }
+      delete r.destaque;
+    }
+    estado.migracoes.push('destaque-privado');
+    migrou = true;
+  }
 
   function salvar() {
     const tmp = arquivo + '.tmp';
@@ -61,8 +78,8 @@ export function abrir(dir, op = {}) {
       console.error(`Aviso: não consegui copiar o backup para ${extra}: ${err.message}`);
     }
   }
-  if (tokensNovos) salvar();
-  else {
+  if (tokensNovos || migrou) salvar();
+  if (!tokensNovos) {
     // ao subir: garante o backup de hoje, também na pasta extra, mesmo sem nenhuma ação ainda
     const nome = `casa-${hojeNoFuso(estado.casa.tz)}.json`;
     const b = path.join(dir, 'backup', nome);

@@ -61,7 +61,7 @@ const CASOS = [
   ['humor 4, energia 3', reg({ humor: 4, energia: 3 })],
   ['energia 2', reg({ energia: 2 })],
   ['humor 5', reg({ humor: 5 })],
-  ['destaque do dia: terminei o relatório', reg({ destaque: 'terminei o relatório' })],
+  ['destaque do dia: terminei o relatório', priv({ destaque: 'terminei o relatório' })],
   ['diário: dia puxado mas bom', priv({ texto: 'dia puxado mas bom' })],
   ['gratidão: o almoço com a família', priv({ gratidao: 'o almoço com a família' })],
   // ambíguas: o sistema pergunta em vez de chutar

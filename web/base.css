@@ -33,6 +33,8 @@
 }
 
 * { box-sizing: border-box; }
+/* `hidden` sempre vence: sem isto, um .campo { display: flex } continuava aparecendo escondido */
+[hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body {
   background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 19px; line-height: 1.4;

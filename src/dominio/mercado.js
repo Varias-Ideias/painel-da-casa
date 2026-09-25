@@ -11,15 +11,15 @@ export function normalizar(s) {
 
 // Palavras (já normalizadas) → seção. Frases de duas palavras vêm antes das simples.
 const DICIONARIO = {
-  'Hortifrúti': 'banana tomate alface cebola alho batata maca laranja limao cenoura abobrinha brocolis pepino mamao manga uva morango abacate fruta frutas verdura legume cheiro-verde salsinha couve rucula melancia',
-  'Padaria': 'pao paes bolo torrada biscoito bisnaguinha croissant',
-  'Açougue': 'carne frango peixe linguica bife picanha costela file patinho moida',
-  'Frios e laticínios': 'leite queijo iogurte manteiga presunto ovo ovos requeijao mussarela peito-de-peru creme-de-leite margarina',
-  'Mercearia': 'arroz feijao cafe acucar macarrao oleo azeite farinha sal molho aveia granola cereal biscoito-de-agua atum sardinha milho ervilha tempero',
-  'Bebidas': 'suco refrigerante cerveja vinho agua agua-com-gas agua-mineral cha',
-  'Limpeza': 'sabao detergente amaciante desinfetante esponja agua-sanitaria alcool limpador multiuso saco-de-lixo vassoura',
-  'Higiene': 'papel-higienico sabonete shampoo xampu condicionador pasta-de-dente escova-de-dente desodorante fio-dental absorvente cotonete',
-  'Pet': 'racao petisco tapete-higienico areia antipulgas vermifugo sache osso',
+  'Hortifrúti': 'banana tomate tomates alface cebola alho batata batata-doce maca laranja limao cenoura abobrinha abobora brocolis pepino mamao manga uva morango abacate fruta frutas verdura legume cheiro-verde salsinha couve rucula melancia melao abacaxi mandioca aipim inhame beterraba chuchu pimentao gengibre kiwi pera coco maracuja goiaba tangerina mexerica espinafre coentro cebolinha cogumelo champignon vagem quiabo repolho couve-flor berinjela jilo hortela manjericao alecrim',
+  'Padaria': 'pao paes bolo torrada biscoito bisnaguinha croissant sonho broa baguete ciabatta torta pao-de-queijo',
+  'Açougue': 'carne frango peixe linguica bife picanha costela file patinho moida bacon alcatra contrafile maminha pernil lombo salsicha hamburguer camarao salmao tilapia coxa sobrecoxa peito-de-frango',
+  'Frios e laticínios': 'leite queijo iogurte manteiga presunto ovo ovos requeijao mussarela peito-de-peru creme-de-leite margarina ricota cream-cheese nata salame mortadela kefir parmesao coalhada',
+  'Mercearia': 'arroz feijao cafe acucar macarrao oleo azeite farinha sal molho aveia granola cereal biscoito-de-agua atum sardinha milho ervilha tempero tapioca farofa fuba polvilho maisena amido chocolate cacau achocolatado leite-condensado gelatina pipoca amendoim castanha castanhas nozes uva-passa mel geleia ketchup catchup maionese mostarda vinagre shoyu azeitona palmito lentilha grao-de-bico quinoa chia linhaca bolacha fermento extrato-de-tomate caldo cuscuz',
+  'Bebidas': 'suco refrigerante cerveja vinho agua agua-com-gas agua-mineral cha energetico agua-de-coco kombucha cha-gelado',
+  'Limpeza': 'sabao detergente amaciante desinfetante esponja agua-sanitaria alcool limpador multiuso saco-de-lixo vassoura lustra-moveis limpa-vidro pano flanela luva rodo papel-toalha guardanapo papel-aluminio filme-plastico sabao-liquido tira-manchas cloro lava-loucas',
+  'Higiene': 'papel-higienico sabonete shampoo xampu condicionador pasta-de-dente escova-de-dente desodorante fio-dental absorvente cotonete lamina barbeador protetor-solar hidratante algodao lenco fralda enxaguante',
+  'Pet': 'racao petisco tapete-higienico areia antipulgas vermifugo sache osso coleira brinquedo-pet',
 };
 const PARES = Object.entries(DICIONARIO).flatMap(([secao, ws]) => ws.split(' ').map((w) => [w.replace(/-/g, ' '), secao]))
   .sort((a, b) => b[0].length - a[0].length);

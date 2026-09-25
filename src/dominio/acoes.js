@@ -6,7 +6,7 @@
 import { normalizar, separarItens, secaoDe, SECOES_PADRAO } from './mercado.js';
 import { interpretar } from './parser.js';
 import { estadoHabito } from './habitos.js';
-import { formatoRelativo } from './datas.js';
+import { formatoRelativo, diferencaDias } from './datas.js';
 import { gerarExemplos } from './exemplos.js';
 
 export class ErroAcao extends Error {
@@ -35,6 +35,23 @@ export function estadoVazio(tz = 'America/Sao_Paulo') {
 export function filtrarPara(estado, quem) {
   const { tokens, capturas, aplicadas, privado, ...resto } = estado;
   return { ...resto, privado: quem !== 'casa' && privado?.[quem] ? { [quem]: privado[quem] } : {} };
+}
+
+/** Mesmo dia no ano seguinte; 29/02 vira 28/02 quando o ano não é bissexto. @param {string} dia */
+export function proximoAno(dia) {
+  const [a, m, d] = dia.split('-').map(Number);
+  const bissexto = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const dd = m === 2 && d === 29 && !bissexto(a + 1) ? 28 : d;
+  return `${a + 1}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+}
+/**
+ * A pendência aparece agora? Sem aviso: sempre. Com aviso (aniversário, presente): só a partir de
+ * N dias antes do prazo. @param {any} p @param {string} hoje
+ */
+export function pendenciaVisivel(p, hoje) {
+  if (p.concluida_em) return false;
+  if (!p.aviso_dias || !p.prazo) return true;
+  return diferencaDias(hoje, p.prazo) <= p.aviso_dias;
 }
 
 const lista = (/** @type {string[]} */ xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`);
@@ -224,8 +241,10 @@ export function aplicar(estado, acao, ctx) {
     case 'pendencia.criar': {
       const titulo = String(d.titulo || '').trim();
       if (!titulo) throw new ErroAcao('A pendência precisa de título');
+      if (d.repete && !d.prazo) throw new ErroAcao('Uma data que se repete precisa de dia');
       const p = {
         id: ctx.novoId(), titulo, resp: d.resp || null, prazo: d.prazo || null, nota: d.nota || '',
+        repete: d.repete === 'anual' ? 'anual' : null, aviso_dias: d.aviso_dias ? Number(d.aviso_dias) : null, icone: d.icone || null,
         criada_por: por, em: ctx.agora, concluida_em: null, concluida_por: null, origem: d.origem || 'app',
       };
       estado.pendencias.push(p);
@@ -235,8 +254,8 @@ export function aplicar(estado, acao, ctx) {
     case 'pendencia.editar': {
       const p = estado.pendencias.find((x) => x.id === d.id);
       if (!p) throw new ErroAcao('Pendência não encontrada', 404);
-      const antes = { titulo: p.titulo, resp: p.resp, prazo: p.prazo, nota: p.nota };
-      for (const k of ['titulo', 'resp', 'prazo', 'nota']) if (d[k] !== undefined) p[k] = d[k] === '' && k !== 'nota' && k !== 'titulo' ? null : d[k];
+      const antes = { titulo: p.titulo, resp: p.resp, prazo: p.prazo, nota: p.nota, repete: p.repete ?? null, aviso_dias: p.aviso_dias ?? null, icone: p.icone ?? null };
+      for (const k of ['titulo', 'resp', 'prazo', 'nota', 'repete', 'aviso_dias', 'icone']) if (d[k] !== undefined) p[k] = d[k] === '' && k !== 'nota' && k !== 'titulo' ? null : d[k];
       if (!String(p.titulo || '').trim()) { Object.assign(p, antes); throw new ErroAcao('A pendência precisa de título'); }
       return { resultado: {}, fala: 'Pendência atualizada.', desfazer: { tipo: 'pendencia.editar', dados: { id: p.id, ...antes } } };
     }
@@ -245,6 +264,13 @@ export function aplicar(estado, acao, ctx) {
       const p = estado.pendencias.find((x) => x.id === d.id);
       if (!p) throw new ErroAcao('Pendência não encontrada', 404);
       const concluir = acao.tipo === 'pendencia.concluir';
+      // data que se repete todo ano: "concluir" empurra para o ano que vem, em vez de sumir
+      if (concluir && p.repete === 'anual' && p.prazo) {
+        const antes = p.prazo;
+        p.prazo = proximoAno(p.prazo);
+        const [a, m, dd] = p.prazo.split('-');
+        return { resultado: { prazo: p.prazo }, fala: `Feito! ${p.titulo} volta em ${dd}/${m}/${a}.`, desfazer: { tipo: 'pendencia.editar', dados: { id: p.id, prazo: antes } } };
+      }
       p.concluida_em = concluir ? ctx.agora : null;
       p.concluida_por = concluir ? por : null;
       return { resultado: {}, fala: concluir ? `Concluída: ${p.titulo}.` : `${p.titulo} reaberta.`, desfazer: { tipo: concluir ? 'pendencia.reabrir' : 'pendencia.concluir', dados: { id: p.id } } };
@@ -271,22 +297,25 @@ export function aplicar(estado, acao, ctx) {
         if (v !== null && !(v >= 1 && v <= 5)) throw new ErroAcao(`${k} vai de 1 a 5`);
         campos[k] = v;
       }
-      if (d.campos?.destaque !== undefined) campos.destaque = String(d.campos.destaque).slice(0, 280);
+      // o destaque agora é privado (25/09): se vier aqui, só a própria pessoa grava, e vai para o privado
+      if (d.campos?.destaque !== undefined && por === alvo) {
+        aplicar(estado, { tipo: 'privado.salvar', dados: { data: dia, campos: { destaque: d.campos.destaque } } }, ctx);
+      }
       estado.registro[alvo] ||= {};
       const antes = { ...(estado.registro[alvo][dia] || {}) };
       estado.registro[alvo][dia] = { ...antes, ...campos };
       const partes = [];
       if (campos.humor) partes.push(`humor ${campos.humor}`);
       if (campos.energia) partes.push(`energia ${campos.energia}`);
-      if (campos.destaque) partes.push('o destaque do dia');
       const antesCampos = Object.fromEntries(Object.keys(campos).map((k) => [k, antes[k] ?? null]));
       return { resultado: {}, fala: partes.length ? `Registrei ${lista(partes)}.` : 'Registro salvo.', desfazer: { tipo: 'registro.salvar', dados: { membro: alvo, data: dia, campos: antesCampos } } };
     }
     case 'privado.salvar': {
-      if (por === 'casa') throw new ErroAcao('Diário e gratidão só pelo aparelho da própria pessoa', 403);
+      if (por === 'casa') throw new ErroAcao('Destaque, diário e gratidão só pelo aparelho da própria pessoa', 403);
       const campos = {};
       if (d.campos?.texto !== undefined) campos.texto = String(d.campos.texto).slice(0, 5000);
       if (d.campos?.gratidao !== undefined) campos.gratidao = String(d.campos.gratidao).slice(0, 500);
+      if (d.campos?.destaque !== undefined) campos.destaque = String(d.campos.destaque).slice(0, 280);
       estado.privado[por] ||= {};
       const antes = { ...(estado.privado[por][dia] || {}) };
       const anexar = d.anexar === true;
@@ -294,7 +323,8 @@ export function aplicar(estado, acao, ctx) {
       for (const [k, v] of Object.entries(campos)) novo[k] = anexar && antes[k] ? `${antes[k]}\n${v}` : v;
       estado.privado[por][dia] = novo;
       const antesCampos = Object.fromEntries(Object.keys(campos).map((k) => [k, antes[k] ?? '']));
-      return { resultado: {}, fala: campos.texto !== undefined ? 'Anotei no seu diário.' : 'Anotei a sua gratidão.', desfazer: { tipo: 'privado.salvar', dados: { data: dia, campos: antesCampos } } };
+      const fala = campos.texto !== undefined ? 'Anotei no seu diário.' : campos.destaque !== undefined ? 'Anotei o seu destaque do dia.' : 'Anotei a sua gratidão.';
+      return { resultado: {}, fala, desfazer: { tipo: 'privado.salvar', dados: { data: dia, campos: antesCampos } } };
     }
 
     // ---------------- membros ----------------
@@ -310,7 +340,11 @@ export function aplicar(estado, acao, ctx) {
     case 'exemplos.gerar': {
       // troca os exemplos atuais pelos ricos (90 dias); o que é da casa de verdade não é tocado
       aplicar(estado, { tipo: 'exemplos.remover', dados: {} }, ctx);
-      const g = gerarExemplos(estado, ctx.hoje);
+      const g = gerarExemplos(estado, ctx.hoje, { estresse: d.estresse === true });
+      for (const [m, dias] of Object.entries(g.privado)) {
+        estado.privado[m] ||= {};
+        for (const [dd, r] of Object.entries(dias)) if (!estado.privado[m][dd]) estado.privado[m][dd] = r;
+      }
       estado.habitos.push(...g.habitos);
       estado.eventos.push(...g.eventos);
       estado.mercado.push(...g.mercado.filter((i) => !estado.mercado.some((x) => x.nome_norm === i.nome_norm)));
@@ -320,7 +354,7 @@ export function aplicar(estado, acao, ctx) {
         estado.registro[m] ||= {};
         for (const [dd, r] of Object.entries(dias)) if (!estado.registro[m][dd]) estado.registro[m][dd] = r;
       }
-      return { resultado: { habitos: g.habitos.length, eventos: g.eventos.length }, fala: 'Exemplos de 90 dias gerados.', desfazer: { tipo: 'exemplos.remover', dados: {} } };
+      return { resultado: { habitos: g.habitos.length, eventos: g.eventos.length }, fala: d.estresse ? 'Teste de estresse carregado: muito de tudo.' : 'Exemplos de 90 dias gerados.', desfazer: { tipo: 'exemplos.remover', dados: {} } };
     }
     case 'exemplos.remover': {
       const idsHab = new Set(estado.habitos.filter((h) => h.exemplo).map((h) => h.id));
@@ -330,7 +364,11 @@ export function aplicar(estado, acao, ctx) {
         mercado: estado.mercado.filter((x) => x.origem === 'exemplo'),
         pendencias: estado.pendencias.filter((x) => x.origem === 'exemplo'),
         registro: /** @type {any[]} */ ([]),
+        privado: /** @type {any[]} */ ([]),
       };
+      for (const [m, dias] of Object.entries(estado.privado || {})) for (const [dd, r] of Object.entries(dias)) {
+        if (r.exemplo) { removido.privado.push({ m, dd, r }); delete dias[dd]; }
+      }
       estado.habitos = estado.habitos.filter((h) => !h.exemplo);
       estado.eventos = estado.eventos.filter((x) => x.origem !== 'exemplo' && !idsHab.has(x.habito));
       estado.mercado = estado.mercado.filter((x) => x.origem !== 'exemplo');
@@ -338,7 +376,7 @@ export function aplicar(estado, acao, ctx) {
       for (const [m, dias] of Object.entries(estado.registro)) for (const [dd, r] of Object.entries(dias)) {
         if (r.exemplo) { removido.registro.push({ m, dd, r }); delete dias[dd]; }
       }
-      const total = removido.habitos.length + removido.eventos.length + removido.mercado.length + removido.pendencias.length + removido.registro.length;
+      const total = removido.habitos.length + removido.eventos.length + removido.mercado.length + removido.pendencias.length + removido.registro.length + removido.privado.length;
       return { resultado: { total }, fala: total ? 'Dados de exemplo removidos.' : 'Não havia dados de exemplo.', desfazer: { tipo: 'exemplos.restaurar', dados: removido } };
     }
     case 'exemplos.restaurar': {
@@ -347,6 +385,7 @@ export function aplicar(estado, acao, ctx) {
       estado.mercado.push(...(d.mercado || []));
       estado.pendencias.push(...(d.pendencias || []));
       for (const { m, dd, r } of d.registro || []) { estado.registro[m] ||= {}; estado.registro[m][dd] = r; }
+      for (const { m, dd, r } of d.privado || []) { estado.privado[m] ||= {}; estado.privado[m][dd] = r; }
       return { resultado: {}, fala: 'Exemplos de volta.', desfazer: { tipo: 'exemplos.remover', dados: {} } };
     }
 
@@ -373,7 +412,7 @@ export function aplicar(estado, acao, ctx) {
         }
         interna = { tipo: t, dados: { habito: it.habito, valor: it.valor, origem } };
       } else if (it.tipo === 'registro') interna = { tipo: 'registro.salvar', dados: { campos: it.campos, membro: por === 'casa' ? undefined : por } };
-      else interna = { tipo: 'privado.salvar', dados: { campos: it.campos, anexar: true } };
+      else interna = { tipo: 'privado.salvar', dados: { campos: it.campos, anexar: !('destaque' in it.campos) } }; // destaque substitui; diário e gratidão acumulam
       if (interna.tipo === 'registro.salvar' && por === 'casa') {
         return { resultado: { interpretacao: it }, fala: 'De quem é esse registro? Registre pelo celular da pessoa ou toque no nome dela no painel.', desfazer: null };
       }
