@@ -134,7 +134,9 @@ async function enviar() {
       mandou = true;
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        toast(`Não salvou: ${j.erro || res.status}`, { erro: true });
+        // a tela é nova e o servidor ainda roda o código velho: dizer o que fazer, não o erro técnico
+        if (/^Ação desconhecida/.test(j.erro || '')) toast('O servidor do computador está desatualizado. Lá: Ctrl+C e npm start, depois tente de novo.', { erro: true, tempo: 10000 });
+        else toast(`Não salvou: ${j.erro || res.status}`, { erro: true });
       }
     }
   } finally {

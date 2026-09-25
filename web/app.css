@@ -128,12 +128,13 @@ body.economia .fotos img { transition-duration: .6s; }
 
 /* No painel nada rola com o dedo: a página inteira fica presa à tela (só as sheets rolam). */
 html:has(body.modo-painel), body.modo-painel { overflow: hidden; overscroll-behavior: none; }
-body.modo-painel { position: fixed; inset: 0; }
+body.modo-painel { position: fixed; top: 0; left: 0; right: 0; height: var(--altura-tela); }
+html:has(body.modo-painel) { height: var(--altura-tela); background: var(--bg); }
 [data-pessoa-menu] { cursor: pointer; }
 .quem[data-pessoa-menu]:active { opacity: .7; }
 
 /* ---------- Descanso: vira um quadro com as fotos em tela cheia e a hora por cima ---------- */
-.descanso { position: fixed; inset: 0; z-index: 50; background: #000; cursor: pointer; animation: apaga 1.2s ease; overflow: hidden; }
+.descanso { position: fixed; top: 0; left: 0; right: 0; height: var(--altura-tela); z-index: 50; background: #000; cursor: pointer; animation: apaga 1.2s ease; overflow: hidden; }
 .descanso .quadro { position: absolute; inset: 0; transition: opacity 2s; }
 .descanso .quadro img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 2.5s ease; }
 .descanso .quadro img.on { opacity: 1; animation: kenburns 22s linear forwards; }

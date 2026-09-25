@@ -33,6 +33,11 @@
 }
 
 * { box-sizing: border-box; }
+/* Altura da tela INTEIRA. No iPad, app na Tela de Início com a barra de status transparente,
+   "100%"/inset:0 medem a tela MENOS a barra de status, mas o conteúdo começa por baixo dela: sobra
+   uma faixa do tamanho da barra embaixo. 100vh/100lvh medem a tela toda. */
+:root { --altura-tela: 100vh; }
+@supports (height: 100lvh) { :root { --altura-tela: 100lvh; } }
 /* `hidden` sempre vence: sem isto, um .campo { display: flex } continuava aparecendo escondido */
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
@@ -66,7 +71,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; line-heig
 
 /* Moldura do painel: tela toda, safe areas, sem rolar */
 .painel {
-  height: 100dvh; overflow: hidden; display: grid; gap: 16px;
+  height: var(--altura-tela); overflow: hidden; display: grid; gap: 16px;
   padding: calc(16px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
            calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
 }
@@ -168,7 +173,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; line-heig
 .selo { font-size: .78rem; color: var(--muted); }
 
 /* Sheet e toast */
-.veu { position: fixed; inset: 0; background: rgba(4, 10, 7, .62); display: flex; justify-content: flex-end; z-index: 20; }
+.veu { position: fixed; top: 0; left: 0; right: 0; height: var(--altura-tela); background: rgba(4, 10, 7, .62); display: flex; justify-content: flex-end; z-index: 20; }
 .sheet {
   width: min(500px, 100%); height: 100%; background: var(--surface-solid); padding: calc(24px + env(safe-area-inset-top, 0px)) 24px 24px;
   display: flex; flex-direction: column; gap: 16px; overflow-y: auto; overscroll-behavior: contain; border-left: 1px solid var(--line);

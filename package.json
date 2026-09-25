@@ -5,7 +5,8 @@
   "description": "Hábitos, mercado, pendências e registro do dia num painel sempre aberto no iPad da casa.",
   "type": "module",
   "scripts": {
-    "start": "node servidor/servidor.js",
+    "start": "node --watch-path=src --watch-path=servidor servidor/servidor.js",
+    "start-sem-reinicio": "node servidor/servidor.js",
     "portoes": "portao-contexto",
     "unit": "node --test \"test/unit/*.test.js\"",
     "integracao": "node --test \"test/integracao/*.test.js\"",
