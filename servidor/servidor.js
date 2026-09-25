@@ -19,7 +19,7 @@ const DADOS = path.resolve(process.env.DADOS || path.join(RAIZ, 'dados'));
 const WEB = path.join(RAIZ, 'web');
 const DOMINIO = path.join(RAIZ, 'src', 'dominio');
 
-export function criarServidor({ dados = DADOS, silencioso = false } = {}) {
+export function criarServidor({ dados = DADOS, silencioso = false, ips = null } = {}) {
   const banco = abrir(dados);
   const ouvintes = new Set();
   const limites = new Map(); // quem → [instantes] para o rate limit da captura
@@ -161,7 +161,7 @@ export function criarServidor({ dados = DADOS, silencioso = false } = {}) {
       if (url.pathname === '/parear') {
         const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
         if (!local) return json(res, 403, { erro: 'A página de pareamento só abre no computador da casa (localhost).' });
-        return paginaParear(res, dados);
+        return paginaParear(res, dados, ips || enderecos());
       }
 
       // ---------- arquivos ----------
@@ -179,18 +179,20 @@ export function criarServidor({ dados = DADOS, silencioso = false } = {}) {
   return { servidor, banco };
 }
 
-/** Lê dados/links.txt e mostra um QR por aparelho. Os links nunca saem do computador por aqui. */
-function paginaParear(res, dados) {
+/**
+ * Lê os códigos de dados/links.txt e mostra um QR por aparelho, montado com o IP ATUAL do
+ * computador: o roteador pode trocar o IP (aconteceu em 25/09), e o link gravado no arquivo envelhece.
+ * Os links nunca saem do computador por aqui.
+ */
+function paginaParear(res, dados, ips) {
   let txt = '';
   try { txt = fs.readFileSync(path.join(dados, 'links.txt'), 'utf8'); } catch { /* sem arquivo */ }
-  const porAparelho = new Map();
+  const codigos = new Map(); // aparelho → código
   for (const linha of txt.split('\n')) {
-    const m = linha.match(/^(.+?)\s+(http:\/\/(\S+?):\d+\/\?t=\S+)\s*$/);
-    if (!m || m[3] === 'localhost') continue;
-    const nome = m[1].trim();
-    if (!porAparelho.has(nome)) porAparelho.set(nome, []);
-    porAparelho.get(nome).push(m[2]);
+    const m = linha.match(/^(.+?)\s+https?:\/\/\S+?\/\?t=(\S+)\s*$/);
+    if (m && !codigos.has(m[1].trim())) codigos.set(m[1].trim(), m[2]);
   }
+  const porAparelho = new Map([...codigos].map(([nome, t]) => [nome, ips.map((ip) => `http://${ip}:${PORTA}/?t=${t}`)]));
   // rede de casa primeiro (192.168.x, 10.x, 172.16–31.x); o resto (ex.: Tailscale) vem como alternativa
   const casa = (u) => /\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u);
   const blocos = [...porAparelho].map(([nome, urls]) => {
@@ -207,7 +209,8 @@ function paginaParear(res, dados) {
 <p>Aponte a câmera de cada aparelho para o QR dele, <b>no mesmo Wi-Fi deste computador</b>. Cada link vale para um aparelho só: não compartilhe. Esta página só abre aqui no computador.</p>
 ${blocos.length ? '' : '<p><b>Não achei dados/links.txt.</b> Ele é criado na primeira vez que o servidor sobe com a pasta de dados vazia.</p>'}
 <div class="grade">${blocos.map((b, i) => `<div class="c"><h2 style="margin:0">${b.nome}</h2><div class="qr" id="qr${i}"></div>
-<small>${b.principal.replace(/t=.*/, 't=…')}</small>${b.outros.length ? `<small>Fora de casa (se usar Tailscale): outro endereço em dados/links.txt</small>` : ''}</div>`).join('')}</div>
+<small>${b.principal.replace(/t=.*/, 't=…')}</small>${b.outros.length ? `<small>Também: ${b.outros.map((u) => u.replace(/\?t=.*/, '')).join(' · ')}</small>` : ''}</div>`).join('')}</div>
+<p><b>O IP do computador mudou?</b> Esta página sempre usa o IP de agora. Reinstale o app no iPad a partir do QR novo. Para não acontecer de novo, reserve o IP do computador no roteador.</p>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>const L=${JSON.stringify(blocos.map((b) => b.principal))};
 if (window.QRCode) L.forEach((u,i)=>new QRCode(document.getElementById('qr'+i),{text:u,width:220,height:220,correctLevel:QRCode.CorrectLevel.M}));

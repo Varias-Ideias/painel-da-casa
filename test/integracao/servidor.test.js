@@ -11,7 +11,8 @@ let srv, banco, base, dir, T;
 
 before(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'painel-'));
-  ({ servidor: srv, banco } = criarServidor({ dados: dir, silencioso: true }));
+  // IPs "atuais" fixos para o teste: o computador mudou de .9 para .10, e o Tailscale continua
+  ({ servidor: srv, banco } = criarServidor({ dados: dir, silencioso: true, ips: ['100.85.1.2', '192.168.0.10'] }));
   await new Promise((ok) => srv.listen(0, '127.0.0.1', ok));
   base = `http://127.0.0.1:${srv.address().port}`;
   T = banco.tokensNovos;
@@ -135,7 +136,7 @@ test('/parear abre no próprio computador e não quebra sem links.txt', async ()
   assert.match(r.txt, /Não achei dados\/links.txt/);
 });
 
-test('/parear lê o links.txt no formato que o servidor grava e prefere o IP da casa', async () => {
+test('/parear usa o IP ATUAL (o links.txt tem o antigo) e prefere a rede de casa', async () => {
   const falso = [
     '# Links de pareamento', '',
     `${'iPad da casa'.padEnd(14)} http://localhost:8765/?t=AAA`, `${'iPad da casa'.padEnd(14)} http://100.85.1.2:8765/?t=AAA`, `${'iPad da casa'.padEnd(14)} http://192.168.0.9:8765/?t=AAA`, '',
@@ -145,7 +146,8 @@ test('/parear lê o links.txt no formato que o servidor grava e prefere o IP da 
   fs.writeFileSync(path.join(dir, 'links.txt'), falso);
   const r = await req('GET', '/parear');
   const links = JSON.parse(r.txt.match(/const L=(\[.*?\]);/)[1]);
-  assert.deepEqual(links, ['http://192.168.0.9:8765/?t=AAA', 'http://192.168.0.9:8765/?t=MMM', 'http://192.168.0.9:8765/?t=KKK']);
+  assert.deepEqual(links, ['http://192.168.0.10:8765/?t=AAA', 'http://192.168.0.10:8765/?t=MMM', 'http://192.168.0.10:8765/?t=KKK']);
+  assert.match(r.txt, /Também: http:\/\/100\.85\.1\.2:8765\//);
   assert.match(r.txt, /<h2 style="margin:0">Matheus<\/h2>/);
   fs.rmSync(path.join(dir, 'links.txt'));
 });

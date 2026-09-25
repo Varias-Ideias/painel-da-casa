@@ -70,8 +70,9 @@ Escolha **Redes privadas** e permita. Sem isso, o iPad e os celulares não enxer
 - **Tela sempre acesa:** o navegador só libera isso em HTTPS, e em casa rodamos em `http`.
   Plano B no iPad: **Ajustes → Tela e Brilho → Bloqueio Automático → Nunca**. Para travar o iPad no
   app, use **Ajustes → Acessibilidade → Acesso Guiado**.
-- **IP do computador:** se o roteador trocar o IP do computador (hoje `192.168.0.9`), os links
-  param de funcionar. Reserve esse IP no roteador (DHCP fixo) ou pareie de novo pelo `/parear`.
+- **IP do computador:** se o roteador trocar o IP do computador (aconteceu em 25/09: `.9` virou `.10`),
+  o iPad perde o servidor. Abra de novo o `/parear` (ele sempre usa o IP atual) e reinstale. Para não
+  repetir, reserve o IP do computador no roteador (DHCP fixo).
 - **Abrir sem rede:** com o app já aberto, tudo segue funcionando e as marcações vão para a fila.
   Recarregar a página sem rede não funciona no iPad por `http`, porque o service worker exige HTTPS.
 
