@@ -120,7 +120,7 @@ test('tempo real: quem está ouvindo recebe a nova versão', async () => {
 test('arquivos: app servido e sem escapar da pasta', async () => {
   const r = await req('GET', '/');
   assert.equal(r.status, 200);
-  assert.match(r.txt, /Painel da Casa/);
+  assert.match(r.txt, /<title>mrcx<\/title>/);
   const dom = await req('GET', '/dominio/parser.js');
   assert.equal(dom.status, 200);
   const fuga = await req('GET', '/dominio/../../servidor/armazenamento.js');
