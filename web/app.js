@@ -888,7 +888,7 @@ function proximaFoto() {
   fotoI = (fotoI + 1) % fotos.length;
   $$('[data-mod="fotos"]').forEach((el) => mostrarFoto(el));
 }
-const RENDER = { relogio: renderRelogio, quem: renderQuem, habitos: renderHabitos, registro: renderRegistro, mercado: renderMercado, pendencias: renderPend, sync: renderSync, captura: renderCaptura, tela: renderTela, fotos: renderFotos };
+const RENDER = { relogio: renderRelogio, quem: renderQuem, habitos: renderHabitos, registro: renderRegistro, mercado: renderMercado, pendencias: renderPend, sync: renderSync, captura: renderCaptura, tela: renderTela, fotos: renderFotos, contamerc: (el) => renderContaMerc(el) };
 
 // ---------------------------------------------------------------- layout do painel ("Agora", o C)
 // Tela cheia: o iPad só deixa se o navegador tiver a API; onde não tem, o botão nem aparece.
@@ -902,19 +902,52 @@ function telaCheia() {
 }
 const botoesTopo = () => `<div class="acoes">${podeTelaCheia() ? '<button type="button" class="icone" data-a="tela-cheia" aria-label="Tela cheia">⛶</button>' : ''}<button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${prefs.tema === 'light' ? '☀' : '☾'}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
 
+// Layouts do painel (⚙ → Layout do painel). Todos usam os mesmos módulos; muda só o arranjo.
+const LAYOUTS = [['agora', '1 · Agora'], ['quadro', '2 · Quadro vivo'], ['colunas', '3 · Coluna por pessoa'], ['assuntos', '4 · Três assuntos'], ['foco', '5 · Hoje em foco']];
 function layoutPainel() {
+  const L = LAYOUTS.some(([k]) => k === prefs.layout) ? prefs.layout : 'agora';
   const grupo = (lado, dono) => `<div class="grupo"><div class="lado">${lado}</div><div class="fila" data-mod="habitos" data-dono="${esc(dono)}" data-rotulos="0"></div></div>`;
-  const cachorros = pets().length ? grupo(`<div class="quem" data-pessoa-menu="pets" role="button" style="--cor:var(--pet)"><div class="av">🐶</div><strong>${esc(pets().map((p) => p.nome).join(' e '))}</strong></div>`, 'pets') : '';
+  const quemPets = `<div class="quem" data-pessoa-menu="pets" role="button" style="--cor:var(--pet)"><div class="av">🐶</div><strong>${esc(pets().map((p) => p.nome).join(' e '))}</strong></div>`;
+  const quemPessoa = (p) => `<div class="quem" data-mod="quem" data-pessoa="${esc(p.id)}"></div><div class="mini" data-mod="registro" data-pessoa="${esc(p.id)}"></div>`;
+  const hoje = `<section class="card" id="hab"><header><h2>Hoje</h2></header><div class="grupos">
+      ${pets().length ? grupo(quemPets, 'pets') : ''}${pessoas().map((p) => grupo(quemPessoa(p), p.id)).join('')}</div></section>`;
+  const relogioBloco = `<div class="linha"><div class="relogio" data-mod="relogio"></div>${botoesTopo()}</div>`;
+  const rodape = '<div class="linha rodape"><span data-mod="sync"></span><span class="selo" data-mod="tela"></span></div>';
+  const pend = '<section class="card" id="pend"><div data-mod="pendencias" data-proximas="1"></div></section>';
+  const merc = '<section class="card" id="merc" data-mod="mercado" data-semcampo="1"></section>';
+  const fotos = '<section class="card" id="fotos" data-mod="fotos" data-a="foto"></section>';
+  // foto com o relógio por cima (quadro vivo, coluna por pessoa)
+  const fotoComRelogio = `<section class="card" id="quadro"><div class="fotos-fundo" data-mod="fotos" data-a="foto"></div>
+      <div class="sobre">${relogioBloco}${rodape}</div></section>`;
+
+  if (L === 'quadro') return `<main class="painel L-quadro">${fotoComRelogio}${pend}${hoje}${merc}</main>`;
+  if (L === 'colunas') {
+    const coluna = (id, cab, dono) => `<section class="card coluna" id="col-${esc(id)}"><header>${cab}</header><div class="lista vertical" data-mod="habitos" data-dono="${esc(dono)}" data-rotulos="0"></div></section>`;
+    return `<main class="painel L-colunas">
+      ${pets().length ? coluna('pets', quemPets, 'pets') : ''}
+      ${pessoas().map((p) => coluna(p.id, quemPessoa(p), p.id)).join('')}
+      ${pend}${merc}${fotoComRelogio}</main>`;
+  }
+  if (L === 'assuntos') {
+    return `<main class="painel L-assuntos">
+      <section class="card" id="faixa">${relogioBloco}<div class="faixa-foto" data-mod="fotos" data-a="foto"></div>${rodape}</section>
+      ${pend}${hoje}${merc}</main>`;
+  }
+  if (L === 'foco') {
+    return `<main class="painel L-foco">${hoje}
+      <section class="card" id="lado">${relogioBloco}
+        <div data-mod="pendencias" data-proximas="1"></div>
+        <button type="button" class="gaveta" data-a="gaveta-mercado">🛒 <span>Mercado</span><b data-mod="contamerc"></b></button>
+        <div class="mini-foto" data-mod="fotos" data-a="foto"></div>${rodape}</section></main>`;
+  }
+  // 1 · Agora (padrão)
   return `<main class="painel C">
-    <section class="card" id="agora"><div class="linha"><div class="relogio" data-mod="relogio"></div>${botoesTopo()}</div>
-      <div data-mod="pendencias" data-proximas="1"></div>
-      <div class="linha"><span data-mod="sync"></span><span class="selo" data-mod="tela"></span></div></section>
-    <section class="card" id="hab"><header><h2>Hoje</h2></header><div class="grupos">
-      ${cachorros}
-      ${pessoas().map((p) => grupo(`<div class="quem" data-mod="quem" data-pessoa="${esc(p.id)}"></div><div class="mini" data-mod="registro" data-pessoa="${esc(p.id)}"></div>`, p.id)).join('')}
-    </div></section>
-    <section class="card" id="merc" data-mod="mercado" data-semcampo="1"></section>
-    <section class="card" id="fotos" data-mod="fotos" data-a="foto"></section></main>`;
+    <section class="card" id="agora">${relogioBloco}<div data-mod="pendencias" data-proximas="1"></div>${rodape}</section>
+    ${hoje}${merc}${fotos}</main>`;
+}
+function renderContaMerc(el) {
+  const n = vista.mercado.filter((i) => !i.comprado_em).length;
+  el.textContent = n ? `${n} ${n === 1 ? 'item' : 'itens'}` : 'vazio';
 }
 
 const ABAS = [['hoje', '☀', 'Hoje'], ['mercado', '🛒', 'Mercado'], ['pendencias', '✓', 'Pendências'], ['registro', '✎', 'Registro']];
@@ -1008,6 +1041,7 @@ function ajustes() {
     el.innerHTML = `<h2>Ajustes</h2>
     <div class="ajuste"><span class="rot">Este aparelho</span><p>${esc(sou)} · <span data-mod="sync"></span></p>
       <span class="rot">Tela</span><div class="opcoes" data-pref="modo">${[['auto', 'Automática'], ['painel', 'Painel'], ['celular', 'Celular']].map(([k, v]) => `<button type="button" data-v="${k}" class="${prefs.modo === k ? 'on' : ''}">${v}</button>`).join('')}</div>
+      <span class="rot">Layout do painel</span><div class="opcoes" data-pref="layout">${LAYOUTS.map(([k, v]) => `<button type="button" data-v="${k}" class="${(prefs.layout || 'agora') === k ? 'on' : ''}">${v}</button>`).join('')}</div>
       <span class="rot">Economia de bateria</span><div class="opcoes" data-pref="economia">${[['nao', 'Visual completo'], ['sim', 'Econômico']].map(([k, v]) => `<button type="button" data-v="${k}" class="${(prefs.economia || 'nao') === k ? 'on' : ''}">${v}</button>`).join('')}</div>
       <span class="dica">Econômico: sem animação no fundo, sem desfoque nos cartões, fotos sem zoom. Mesmo no visual completo, nada anima enquanto a tela descansa.</span>
       <span class="rot">Descansar a tela depois de</span><div class="opcoes" data-pref="descanso">${[[0.25, '15 s'], [1, '1 min'], [3, '3 min'], [10, '10 min'], [0, 'Nunca']].map(([k, v]) => `<button type="button" data-v="${k}" class="${Number(prefs.descanso) === k ? 'on' : ''}">${v}</button>`).join('')}</div>
@@ -1172,7 +1206,7 @@ function modoDesejado() {
 function montar() {
   if (!vista) return;
   const modo = modoDesejado();
-  const chave = modo;
+  const chave = modo + (modo === 'painel' ? prefs.layout || '' : '');
   if (chave === modoAtual) return render();
   modoAtual = chave;
   document.body.classList.toggle('modo-painel', modo === 'painel');
@@ -1235,7 +1269,15 @@ document.addEventListener('click', (e) => {
     return;
   }
   if ((x = t.closest('[data-chip]'))) return agir('mercado.adicionar', { texto: x.dataset.chip });
-  if ((x = t.closest('[data-pend-ok]'))) return agir('pendencia.concluir', { id: x.dataset.pendOk });
+  if ((x = t.closest('[data-pend-ok]'))) {
+    // igual ao mercado: ✓ na bolinha, risca, desliza e sai; depois a ação (com desfazer)
+    const linha = x.closest('.pend');
+    if (linha.classList.contains('saindo')) return;
+    const id = x.dataset.pendOk;
+    linha.classList.add('saindo');
+    setTimeout(() => agir('pendencia.concluir', { id }), 650);
+    return;
+  }
   if ((x = t.closest('[data-pend-edit]'))) return editarPend(x.dataset.pendEdit);
   if ((x = t.closest('[data-pessoa-menu]'))) return pessoaMenu(x.dataset.pessoaMenu);
   if ((x = t.closest('[data-reg]'))) return pessoaMenu(x.dataset.reg);
@@ -1247,6 +1289,7 @@ document.addEventListener('click', (e) => {
   if (a === 'adicionar') return adicionarRapido();
   if (a === 'mercado-rapido') return mercadoRapido();
   if (a === 'nova-pendencia') return novaPendencia();
+  if (a === 'gaveta-mercado') return sheet('<section class="card" data-mod="mercado" data-agrupar="1" data-semcampo="1" style="border:0;padding:0;overflow:visible;background:none;box-shadow:none"></section>', (s) => renderMercado($('[data-mod]', s)));
   if (a === 'tela-cheia') return telaCheia();
   if (a === 'limpar') return agir('mercado.limpar');
   if (a === 'foto') { proximaFoto(); reiniciarFotos(); return; }

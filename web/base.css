@@ -162,8 +162,17 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; line-heig
 
 /* Pendências */
 .pend { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 10px; min-height: 54px; text-align: left; width: 100%; }
-.pend .box { width: 34px; height: 34px; border-radius: 11px; border: 2px solid var(--muted); margin: 7px; transition: all .2s; }
-.pend .box:active { background: var(--accent); border-color: var(--accent); }
+/* mesma bolinha e mesmo efeito do mercado */
+.pend .box { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--muted); margin: 11px; transition: all .2s; display: grid; place-items: center; font-size: .8rem; }
+.pend .t { position: relative; }
+.pend .t::after { content: ""; position: absolute; left: 0; top: .7em; height: 2px; width: 0; background: var(--muted); transition: width .3s ease-out; }
+.pend.saindo .box { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.pend.saindo .box::after { content: "✓"; }
+.pend.saindo .box span { display: none; }
+.pend.saindo .t::after { width: 100%; }
+.pend.saindo .t { color: var(--muted); }
+.pend { transition: opacity .35s, transform .35s; }
+.pend.saindo { opacity: 0; transform: translateX(14px); transition-delay: .35s; }
 .pend .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .pend .t small { display: block; font-weight: 400; font-size: .84rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .prazo { font-size: .82rem; font-weight: 700; padding: 4px 11px; border-radius: 99px; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
