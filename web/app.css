@@ -45,47 +45,6 @@ a { color: var(--accent); }
 .L-quadro #quadro { grid-area: q; } .L-quadro #pend { grid-area: p; } .L-quadro #hab { grid-area: h; } .L-quadro #merc { grid-area: m; }
 @media (orientation: portrait) { .painel.L-quadro { grid-template: "q q" .8fr "h h" auto "p m" 1fr / 1fr 1fr; } }
 
-/* 3 · Uma coluna por pessoa: rotinas em lista vertical */
-.painel.L-colunas { grid-template: "c1 c2 c3" 1.35fr "p m q" 1fr / 1fr 1fr 1fr; }
-.L-colunas .coluna:nth-of-type(1) { grid-area: c1; } .L-colunas .coluna:nth-of-type(2) { grid-area: c2; } .L-colunas .coluna:nth-of-type(3) { grid-area: c3; }
-.L-colunas #pend { grid-area: p; } .L-colunas #merc { grid-area: m; } .L-colunas #quadro { grid-area: q; }
-.L-colunas #quadro .relogio .hora { font-size: 3.6rem; }
-.L-colunas #quadro .relogio .lua { display: none; }
-.coluna > header { flex-direction: column; align-items: stretch !important; gap: 4px; }
-.coluna .lista.vertical { flex: 1; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; gap: 4px; }
-.coluna .lista.vertical .hab { min-height: 52px; grid-template-columns: 48px 1fr auto; gap: 10px; }
-.coluna .lista.vertical .hab .alvo { width: 48px; height: 48px; font-size: 1.2rem; }
-.coluna .mini .destaque { display: none; }
-@media (orientation: portrait) { .painel.L-colunas { grid-template: "c1 c2 c3" 1.4fr "q q q" .55fr "p p m" 1fr / 1fr 1fr 1fr; } }
-
-/* 4 · Três assuntos: faixa com relógio e foto, depois três colunas */
-.painel.L-assuntos { grid-template: "f f f" auto "p h m" 1fr / .9fr 1.25fr .9fr; }
-.L-assuntos #faixa { grid-area: f; flex-direction: row; align-items: stretch; gap: 16px; min-height: 180px; }
-.L-assuntos #faixa > .linha:first-child { flex: none; }
-.L-assuntos #faixa .faixa-foto { flex: 1; }
-.L-assuntos #faixa .rodape { flex-direction: column; justify-content: flex-end; margin: 0; flex: none; }
-.L-assuntos #pend { grid-area: p; } .L-assuntos #hab { grid-area: h; } .L-assuntos #merc { grid-area: m; }
-.L-assuntos .grupo { grid-template-columns: 1fr; gap: 6px; }
-.L-assuntos .grupo .mini { display: none; }
-@media (orientation: portrait) { .painel.L-assuntos { grid-template: "f f" auto "h h" auto "p m" 1fr / 1fr 1fr; } }
-
-/* 5 · Hoje em foco: rotinas grandes; o resto numa coluna lateral */
-.painel.L-foco { grid-template: "h l" 1fr / 1fr 340px; }
-.L-foco #hab { grid-area: h; } .L-foco #lado { grid-area: l; gap: 12px; }
-.L-foco #hab .grupo { grid-template-columns: 200px 1fr; }
-.L-foco #hab .grupo .fila { flex-wrap: wrap; overflow: visible; }
-.L-foco #hab .grupo .tile { width: 118px; }
-.L-foco #hab .grupo .tile .anel { width: 62px; height: 62px; }
-.L-foco #hab .grupos { overflow-y: auto; justify-content: flex-start; }
-.L-foco #lado [data-mod="pendencias"] { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-.L-foco #lado .relogio .hora { font-size: 4.4rem; }
-.L-foco #lado > .linha:first-child { flex-direction: column-reverse; }
-.L-foco #lado > .linha:first-child .acoes { align-self: flex-end; }
-.gaveta { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 16px; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--line); font-weight: 700; }
-.gaveta b { margin-left: auto; color: var(--muted); font-weight: 400; }
-.L-foco .mini-foto { height: 150px; flex: none; }
-@media (orientation: portrait) { .painel.L-foco { grid-template: "l" auto "h" 1fr / 1fr; } .L-foco .mini-foto { display: none; } }
-
 /* Hoje: uma faixa por grupo (cachorros, depois cada pessoa em ordem alfabética) */
 .C #hab { gap: 4px; }
 .C #hab .grupos { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: space-around; gap: 6px; }
@@ -273,6 +232,7 @@ details.campo > summary { cursor: pointer; list-style: none; min-height: 40px; d
 details.campo > summary::before { content: "＋ "; color: var(--accent); }
 details.campo[open] > summary::before { content: "− "; }
 .chips.toque .chip { min-height: 48px; }
+.chip.alerta { background: var(--sun-soft); color: var(--sun); border-color: transparent; margin-left: 6px !important; }
 .chips.toque .chip.apagar { background: var(--late-soft); color: var(--late); border-color: transparent; }
 .chips.toque .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .rapido { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

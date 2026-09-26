@@ -466,6 +466,11 @@ function renderMercado(el) {
   }
   // só o que falta comprar; o que já foi pego some (fica guardado só para "desfazer" e para o app lembrar do item)
   const itens = itensOrdenados().filter((i) => !i.comprado_em);
+  // item sem seção não pode ficar esquecido em "Outros": aviso no cabeçalho até alguém organizar
+  const semSecao = itens.filter((i) => i.secao === 'Outros').length;
+  let aviso = $('[data-a="organizar-secoes"]', el);
+  if (semSecao && !aviso) { $('header', el).insertAdjacentHTML('beforeend', '<button type="button" class="chip alerta" data-a="organizar-secoes"></button>'); aviso = $('[data-a="organizar-secoes"]', el); }
+  if (aviso) { if (semSecao) aviso.textContent = `Organizar ${semSecao}`; else aviso.remove(); }
   let corpo = '';
   if (agrupar) {
     let ultima = '';
@@ -481,6 +486,25 @@ function renderMercado(el) {
   const rolagem = lista.scrollTop; // redesenhar (ex.: alguém marcou no celular) não pode jogar a lista para o topo
   lista.innerHTML = corpo;
   lista.scrollTop = rolagem;
+}
+/** Um item por vez: "Em que seção fica X?" com as seções em chips. Um toque e o app aprende. */
+function organizarSecoes() {
+  const desenhar = (c, fechar) => {
+    const pend = vista.mercado.filter((i) => !i.comprado_em && i.secao === 'Outros');
+    if (!pend.length) { fechar(); return toast('Tudo organizado. O app aprendeu as seções.'); }
+    c.innerHTML = `<h2>Organizar</h2><p class="dica">Toque na seção de cada item. Da próxima vez, ele já cai no lugar certo.</p>
+      ${pend.map((i) => `<div class="campo"><span class="rot">${esc(i.nome)}</span>${opcoes(`sec-${i.id}`, vista.secoes.filter((s) => s !== 'Outros').map((s) => [s, esc(s)]), '')}</div>`).join('')}`;
+  };
+  sheet('<div class="conteudo" style="display:flex;flex-direction:column;gap:16px"></div>', (s, fechar) => {
+    const c = $('.conteudo', s);
+    desenhar(c, fechar);
+    c.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-grupo] [data-op]');
+      if (!b) return;
+      agir('mercado.editar', { id: b.closest('[data-grupo]').dataset.grupo.slice(4), secao: b.dataset.op }, { silencioso: true });
+      desenhar(c, fechar);
+    });
+  });
 }
 function editarItem(id) {
   const i = vista.mercado.find((x) => x.id === id);
@@ -888,7 +912,7 @@ function proximaFoto() {
   fotoI = (fotoI + 1) % fotos.length;
   $$('[data-mod="fotos"]').forEach((el) => mostrarFoto(el));
 }
-const RENDER = { relogio: renderRelogio, quem: renderQuem, habitos: renderHabitos, registro: renderRegistro, mercado: renderMercado, pendencias: renderPend, sync: renderSync, captura: renderCaptura, tela: renderTela, fotos: renderFotos, contamerc: (el) => renderContaMerc(el) };
+const RENDER = { relogio: renderRelogio, quem: renderQuem, habitos: renderHabitos, registro: renderRegistro, mercado: renderMercado, pendencias: renderPend, sync: renderSync, captura: renderCaptura, tela: renderTela, fotos: renderFotos };
 
 // ---------------------------------------------------------------- layout do painel ("Agora", o C)
 // Tela cheia: o iPad só deixa se o navegador tiver a API; onde não tem, o botão nem aparece.
@@ -903,7 +927,7 @@ function telaCheia() {
 const botoesTopo = () => `<div class="acoes">${podeTelaCheia() ? '<button type="button" class="icone" data-a="tela-cheia" aria-label="Tela cheia">⛶</button>' : ''}<button type="button" class="icone" data-a="tema" aria-label="Trocar tema">${prefs.tema === 'light' ? '☀' : '☾'}</button><button type="button" class="icone" data-a="ajustes" aria-label="Ajustes">⚙</button></div>`;
 
 // Layouts do painel (⚙ → Layout do painel). Todos usam os mesmos módulos; muda só o arranjo.
-const LAYOUTS = [['agora', '1 · Agora'], ['quadro', '2 · Quadro vivo'], ['colunas', '3 · Coluna por pessoa'], ['assuntos', '4 · Três assuntos'], ['foco', '5 · Hoje em foco']];
+const LAYOUTS = [['agora', 'Agora'], ['quadro', 'Quadro vivo']];
 function layoutPainel() {
   const L = LAYOUTS.some(([k]) => k === prefs.layout) ? prefs.layout : 'agora';
   const grupo = (lado, dono) => `<div class="grupo"><div class="lado">${lado}</div><div class="fila" data-mod="habitos" data-dono="${esc(dono)}" data-rotulos="0"></div></div>`;
@@ -921,33 +945,10 @@ function layoutPainel() {
       <div class="sobre">${relogioBloco}${rodape}</div></section>`;
 
   if (L === 'quadro') return `<main class="painel L-quadro">${fotoComRelogio}${pend}${hoje}${merc}</main>`;
-  if (L === 'colunas') {
-    const coluna = (id, cab, dono) => `<section class="card coluna" id="col-${esc(id)}"><header>${cab}</header><div class="lista vertical" data-mod="habitos" data-dono="${esc(dono)}" data-rotulos="0"></div></section>`;
-    return `<main class="painel L-colunas">
-      ${pets().length ? coluna('pets', quemPets, 'pets') : ''}
-      ${pessoas().map((p) => coluna(p.id, quemPessoa(p), p.id)).join('')}
-      ${pend}${merc}${fotoComRelogio}</main>`;
-  }
-  if (L === 'assuntos') {
-    return `<main class="painel L-assuntos">
-      <section class="card" id="faixa">${relogioBloco}<div class="faixa-foto" data-mod="fotos" data-a="foto"></div>${rodape}</section>
-      ${pend}${hoje}${merc}</main>`;
-  }
-  if (L === 'foco') {
-    return `<main class="painel L-foco">${hoje}
-      <section class="card" id="lado">${relogioBloco}
-        <div data-mod="pendencias" data-proximas="1"></div>
-        <button type="button" class="gaveta" data-a="gaveta-mercado">🛒 <span>Mercado</span><b data-mod="contamerc"></b></button>
-        <div class="mini-foto" data-mod="fotos" data-a="foto"></div>${rodape}</section></main>`;
-  }
   // 1 · Agora (padrão)
   return `<main class="painel C">
     <section class="card" id="agora">${relogioBloco}<div data-mod="pendencias" data-proximas="1"></div>${rodape}</section>
     ${hoje}${merc}${fotos}</main>`;
-}
-function renderContaMerc(el) {
-  const n = vista.mercado.filter((i) => !i.comprado_em).length;
-  el.textContent = n ? `${n} ${n === 1 ? 'item' : 'itens'}` : 'vazio';
 }
 
 const ABAS = [['hoje', '☀', 'Hoje'], ['mercado', '🛒', 'Mercado'], ['pendencias', '✓', 'Pendências'], ['registro', '✎', 'Registro']];
@@ -1289,7 +1290,7 @@ document.addEventListener('click', (e) => {
   if (a === 'adicionar') return adicionarRapido();
   if (a === 'mercado-rapido') return mercadoRapido();
   if (a === 'nova-pendencia') return novaPendencia();
-  if (a === 'gaveta-mercado') return sheet('<section class="card" data-mod="mercado" data-agrupar="1" data-semcampo="1" style="border:0;padding:0;overflow:visible;background:none;box-shadow:none"></section>', (s) => renderMercado($('[data-mod]', s)));
+  if (a === 'organizar-secoes') return organizarSecoes();
   if (a === 'tela-cheia') return telaCheia();
   if (a === 'limpar') return agir('mercado.limpar');
   if (a === 'foto') { proximaFoto(); reiniciarFotos(); return; }

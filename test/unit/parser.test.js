@@ -93,6 +93,15 @@ for (const [frase, esperado] of CASOS) {
   });
 }
 
+test('mercado: plural cai na mesma seção do singular', async () => {
+  const { secaoDe } = await import('../../src/dominio/mercado.js');
+  assert.equal(secaoDe('Limões'), 'Hortifrúti');
+  assert.equal(secaoDe('Cebolas'), 'Hortifrúti');
+  assert.equal(secaoDe('Pães de queijo'), 'Padaria');
+  assert.equal(secaoDe('Detergentes'), 'Limpeza');
+  assert.equal(secaoDe('Kimchi'), 'Outros');
+});
+
 test('parser: quantidades do mercado', () => {
   const r = interpretar('leite, pão e 2 dúzias de ovos', ctx());
   assert.deepEqual(r.itens.map((i) => i.qtd), ['', '', '2 dúzias']);

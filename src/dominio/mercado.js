@@ -31,9 +31,12 @@ const PARES = Object.entries(DICIONARIO).flatMap(([secao, ws]) => ws.split(' ').
 export function secaoDe(nome, catalogo = {}) {
   const n = normalizar(nome);
   if (catalogo[n]) return catalogo[n].secao;
-  for (const [w, secao] of PARES) {
-    if (n === w || n.startsWith(w + ' ') || n.endsWith(' ' + w) || n.includes(' ' + w + ' ')) return secao;
-  }
+  // tenta a palavra como veio e no singular ("limões" → "limao", "tomates" → "tomate")
+  const formas = [n, n.replace(/oes\b/g, 'ao').replace(/aes\b/g, 'ao'), n.replace(/es\b/g, ''), n.replace(/s\b/g, '')];
+  for (const f of formas) if (catalogo[f]) return catalogo[f].secao;
+  // em português o núcleo vem primeiro ("pão de queijo" é pão): nome exato, depois começo, depois meio/fim
+  const testes = [(f, w) => f === w, (f, w) => f.startsWith(w + ' '), (f, w) => f.includes(' ' + w + ' '), (f, w) => f.endsWith(' ' + w)];
+  for (const t of testes) for (const f of formas) for (const [w, secao] of PARES) if (t(f, w)) return secao;
   return 'Outros';
 }
 
