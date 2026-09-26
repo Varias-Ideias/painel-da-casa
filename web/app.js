@@ -25,6 +25,11 @@ const gerarId = () => (crypto.randomUUID ? crypto.randomUUID() : 'a' + Date.now(
 const clone = (o) => JSON.parse(JSON.stringify(o));
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
+// ---------------------------------------------------------------- onde está o servidor
+// No PC da casa: mesma origem (/api/...). Na nuvem: edge function do Supabase (config.js).
+const NUVEM = window.PAINEL?.api ? window.PAINEL : null;
+const api = (p) => (NUVEM ? NUVEM.api + p : '/api' + p);
+
 // ---------------------------------------------------------------- estado local
 const params = new URLSearchParams(location.search);
 let token = params.get('t') || LS.get('painel-token', null);
@@ -122,7 +127,7 @@ async function enviar() {
       const a = fila[0];
       let res;
       try {
-        res = await fetch('/api/acao', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(a) });
+        res = await fetch(api('/acao'), { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(a) });
       } catch {
         setConexao('off');
         break;
@@ -149,7 +154,7 @@ async function carregar() {
   if (!token) return mostrarParear();
   let res;
   try {
-    res = await fetch('/api/estado', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+    res = await fetch(api('/estado'), { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
   } catch {
     setConexao('off');
     return;
@@ -159,6 +164,7 @@ async function carregar() {
   const j = await res.json();
   servidor = j.estado;
   eu = j.eu;
+  if (NUVEM) ouvirNuvem(j.casa);
   LS.set(K('painel-estado'), servidor);
   LS.set(K('painel-eu'), eu);
   setConexao('ok');
@@ -173,8 +179,29 @@ function setConexao(c) {
   $$('[data-mod="sync"]').forEach(renderSync);
 }
 
-let fonte = null;
+let fonte = null, canalNuvem = null;
+/** Na nuvem: o servidor avisa a versão nova pelo Realtime do Supabase (canal casa-<id>). */
+function ouvirNuvem(casaId) {
+  if (canalNuvem || !casaId) return;
+  if (!window.supabase) {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js';
+    s.onload = () => ouvirNuvem(casaId);
+    s.onerror = () => setConexao('off');
+    document.head.append(s);
+    return;
+  }
+  const sb = window.supabase.createClient(NUVEM.supabaseUrl, NUVEM.supabaseKey);
+  canalNuvem = sb.channel(`casa-${casaId}`)
+    .on('broadcast', { event: 'versao' }, (m) => {
+      setConexao('ok');
+      if (!servidor || m.payload?.versao !== servidor.versao) carregar();
+      if (fila.length) enviar();
+    })
+    .subscribe((st) => { if (st === 'SUBSCRIBED') setConexao('ok'); else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') setConexao('off'); });
+}
 function ouvir() {
+  if (NUVEM) return; // na nuvem, ouvirNuvem() liga depois do primeiro carregar()
   if (!token || !('EventSource' in window)) return;
   fonte?.close();
   fonte = new EventSource(`/api/eventos?t=${encodeURIComponent(token)}`);
@@ -866,7 +893,7 @@ let fotos = [], fotoI = 0, fotoTimer = null, fotosEm = 0;
 async function carregarFotos() {
   if (!token) return;
   try {
-    const r = await fetch('/api/fotos', { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+    const r = await fetch(api('/fotos'), { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
     if (!r.ok) return;
     const j = await r.json();
     const lista = j.fotos.map((f) => ({ ...f, url: f.url.startsWith('/fotos-locais/') ? `${f.url}?t=${encodeURIComponent(token)}` : f.url }));
