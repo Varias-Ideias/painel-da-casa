@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DADOS = path.join(RAIZ, 'dados');
 const API = 'https://xbzeoueiipieoadidibc.supabase.co/functions/v1/api';
-const SITE = 'https://painel-da-casa.vercel.app';
+const SITE = 'https://mrcx.vercel.app';
 
 const codigo = process.argv[2];
 if (!codigo) { console.error('Uso: npm run migrar-nuvem -- <codigo>'); process.exit(2); }

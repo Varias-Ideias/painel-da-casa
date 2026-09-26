@@ -1256,7 +1256,7 @@ function render() {
 function mostrarParear() {
   modoAtual = null;
   fonte?.close();
-  $('#app').innerHTML = `<div class="parear"><h1>Painel da Casa</h1>
+  $('#app').innerHTML = `<div class="parear"><h1>mrcx</h1>
     <p>Este aparelho ainda não está pareado.</p>
     <p class="muted">No computador da casa, abra o arquivo <code>dados/links.txt</code> e abra neste aparelho o link dele (iPad da casa, Matheus ou Karen). Pode escanear o QR code ou colar o link aqui:</p>
     <form class="anotar" data-form="parear"><input name="link" placeholder="Cole o link de pareamento" aria-label="Link de pareamento"><button type="submit">Parear</button></form></div>`;
@@ -1386,8 +1386,8 @@ setInterval(() => {
 }, 15000);
 
 // ---------------------------------------------------------------- atualização sozinha
-// A cada 10 min, confere se o app mudou (novo deploy). Se mudou, recarrega só quando ninguém está
-// mexendo: tela em descanso ou 2 min sem toque. Assim o iPad preso na parede nunca fica velho.
+// Uma vez por hora, confere se o app mudou (novo deploy). Se mudou, recarrega só quando ninguém está
+// mexendo: tela em descanso ou 5 min sem toque. Assim o iPad preso na parede nunca fica velho.
 let assinaturaApp = null, temVersaoNova = false;
 async function assinaturaAtual() {
   const r = await fetch(`app.js?v=${Date.now()}`, { cache: 'no-store' });
@@ -1403,9 +1403,9 @@ async function conferirVersao() {
     else if (a !== assinaturaApp) temVersaoNova = true;
   } catch { /* sem rede: tenta depois */ }
 }
-setInterval(conferirVersao, 10 * 60000);
+setInterval(conferirVersao, 60 * 60000); // uma vez por hora basta
 setInterval(() => {
-  const parado = descansando || Date.now() - ultimoToque > 2 * 60000;
+  const parado = descansando || Date.now() - ultimoToque > 5 * 60000;
   if (temVersaoNova && parado && !fila.length && !$('.veu')) location.reload();
 }, 30000);
 conferirVersao();
