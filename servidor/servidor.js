@@ -185,7 +185,9 @@ export function criarServidor({ dados = DADOS, silencioso = false, ips = null, b
       if (url.pathname === '/parear') {
         const local = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
         if (!local) return json(res, 403, { erro: 'A página de pareamento só abre no computador da casa (localhost).' });
-        return paginaParear(res, dados, ips || enderecos());
+        // depois da migração, os QR codes apontam para a nuvem (endereço fixo, HTTPS)
+        const nuvem = lerConfig(dados).nuvem_url;
+        return paginaParear(res, dados, ips || enderecos(), nuvem);
       }
 
       // ---------- arquivos ----------
@@ -208,7 +210,7 @@ export function criarServidor({ dados = DADOS, silencioso = false, ips = null, b
  * computador: o roteador pode trocar o IP (aconteceu em 25/09), e o link gravado no arquivo envelhece.
  * Os links nunca saem do computador por aqui.
  */
-function paginaParear(res, dados, ips) {
+function paginaParear(res, dados, ips, nuvem = null) {
   let txt = '';
   try { txt = fs.readFileSync(path.join(dados, 'links.txt'), 'utf8'); } catch { /* sem arquivo */ }
   const codigos = new Map(); // aparelho → código
@@ -216,7 +218,7 @@ function paginaParear(res, dados, ips) {
     const m = linha.match(/^(.+?)\s+https?:\/\/\S+?\/\?t=(\S+)\s*$/);
     if (m && !codigos.has(m[1].trim())) codigos.set(m[1].trim(), m[2]);
   }
-  const porAparelho = new Map([...codigos].map(([nome, t]) => [nome, ips.map((ip) => `http://${ip}:${PORTA}/?t=${t}`)]));
+  const porAparelho = new Map([...codigos].map(([nome, t]) => [nome, nuvem ? [`${nuvem}/?t=${t}`] : ips.map((ip) => `http://${ip}:${PORTA}/?t=${t}`)]));
   // rede de casa primeiro (192.168.x, 10.x, 172.16–31.x); o resto (ex.: Tailscale) vem como alternativa
   const casa = (u) => /\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u);
   const blocos = [...porAparelho].map(([nome, urls]) => {
