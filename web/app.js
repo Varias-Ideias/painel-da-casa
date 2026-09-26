@@ -1385,6 +1385,31 @@ setInterval(() => {
   if (fila.length) enviar();
 }, 15000);
 
+// ---------------------------------------------------------------- atualização sozinha
+// A cada 10 min, confere se o app mudou (novo deploy). Se mudou, recarrega só quando ninguém está
+// mexendo: tela em descanso ou 2 min sem toque. Assim o iPad preso na parede nunca fica velho.
+let assinaturaApp = null, temVersaoNova = false;
+async function assinaturaAtual() {
+  const r = await fetch(`app.js?v=${Date.now()}`, { cache: 'no-store' });
+  const t = await r.text();
+  let h = 0;
+  for (let i = 0; i < t.length; i += 7) h = (h * 31 + t.charCodeAt(i)) | 0;
+  return `${t.length}:${h}`;
+}
+async function conferirVersao() {
+  try {
+    const a = await assinaturaAtual();
+    if (assinaturaApp === null) assinaturaApp = a;
+    else if (a !== assinaturaApp) temVersaoNova = true;
+  } catch { /* sem rede: tenta depois */ }
+}
+setInterval(conferirVersao, 10 * 60000);
+setInterval(() => {
+  const parado = descansando || Date.now() - ultimoToque > 2 * 60000;
+  if (temVersaoNova && parado && !fila.length && !$('.veu')) location.reload();
+}, 30000);
+conferirVersao();
+
 // fotos: troca a cada 12 s (parado no descanso); a lista do Pinterest é relida a cada 30 min
 function reiniciarFotos() {
   clearInterval(fotoTimer);
